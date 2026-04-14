@@ -45,4 +45,6 @@ class DiagnosisWorker(QThread):
             self.finished_all.emit()
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.error_occurred.emit(str(e))

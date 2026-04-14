@@ -12,9 +12,10 @@ def set_api_key(key: str):
     global _client
     # 注入默认 headers 伪装成 Kimi CLI 以绕过 Kimi-for-coding 的白名单限制
     _client = OpenAI(
-        api_key=key, 
+        api_key=key,
         base_url="https://api.kimi.com/coding/v1",
-        default_headers={"User-Agent": "KimiCLI/1.5"}
+        default_headers={"User-Agent": "KimiCLI/1.5"},
+        timeout=60.0,
     )
 
 def _get_client() -> OpenAI:
