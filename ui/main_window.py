@@ -306,21 +306,22 @@ class MainWindow(QMainWindow):
 
     def _on_report_token(self, token: str):
         self._report_text += token
-        # 实时将累积的 markdown 文本转换为 HTML
-        html = markdown2.markdown(self._report_text, extras=["tables"])
-        
-        # 为了保留滚动条位置并在 QTextEdit 渲染 HTML
-        scrollbar = self.report_edit.verticalScrollBar()
-        is_at_bottom = scrollbar.value() == scrollbar.maximum()
-        
-        # 强制 HTML 字体颜色为黑色，防止因为深浅色模式或默认样式导致文字隐形
-        styled_html = f"<div style='color: #333333;'>{html}</div>"
-        self.report_edit.setHtml(styled_html)
-        
-        if is_at_bottom:
-            scrollbar.setValue(scrollbar.maximum())
+        cursor = self.report_edit.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        cursor.insertText(token)
+        self.report_edit.setTextCursor(cursor)
+        self.report_edit.ensureCursorVisible()
 
     def _on_finished(self):
+        # 流式结束后一次性转 markdown 渲染
+        try:
+            import markdown2
+            html = markdown2.markdown(self._report_text, extras=["tables"])
+            self.report_edit.setHtml(
+                f"<div style='color:#333333;font-family:Microsoft YaHei,PingFang SC,sans-serif;'>{html}</div>"
+            )
+        except ImportError:
+            pass  # 没装 markdown2 就保留纯文本
         self.step_label.setStyleSheet("color: #67C23A; font-weight: bold;")
         self.btn_start.setEnabled(True)
         self.input_edit.setReadOnly(False)
