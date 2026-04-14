@@ -12,7 +12,7 @@ from ui.styles import GLOBAL_QSS
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("AI驱动充电桩智能诊断平台 · Demo")
+        self.setWindowTitle("AI驱动充电站智能诊断平台 · Demo")
         self.resize(1400, 900)
         self.setStyleSheet(GLOBAL_QSS)
         self._api_key = ""
