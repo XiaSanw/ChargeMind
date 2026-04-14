@@ -31,15 +31,28 @@ class DiagnosisWorker(QThread):
             result = diagnose(params)
             self.diagnosis_ready.emit(result)
 
-            # 步骤 3
-            self.step_changed.emit("正在生成诊断报告...")
-            diagnosis_str = json.dumps(result, ensure_ascii=False, indent=2)
-            for token in generate_report_stream(
-                station_name=params.get("station_name", ""),
-                location=params.get("location", ""),
-                diagnosis_json=diagnosis_str,
-            ):
-                self.report_token.emit(token)
+            # 步骤 3（最多重试 2 次）
+            max_retries = 2
+            for attempt in range(max_retries + 1):
+                try:
+                    self.step_changed.emit(
+                        "正在生成诊断报告..."
+                        + (f"（第{attempt+1}次重试）" if attempt > 0 else "")
+                    )
+                    # 精简 JSON：去掉 indent 减少 token 数
+                    diagnosis_str = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+                    for token in generate_report_stream(
+                        station_name=params.get("station_name", ""),
+                        location=params.get("location", ""),
+                        diagnosis_json=diagnosis_str,
+                    ):
+                        self.report_token.emit(token)
+                    break  # 成功则跳出重试
+                except Exception:
+                    if attempt == max_retries:
+                        raise  # 最后一次仍失败则抛出
+                    self._report_text_reset = True
+                    time.sleep(2)
 
             self.step_changed.emit("诊断完成")
             self.finished_all.emit()
