@@ -20,11 +20,11 @@
 
 | 文件 | 状态 | 用途 |
 |------|------|------|
-| `GEMINI-PROMPT.md` | **给 Gemini 的开发指令** | 包含完整代码规格，已经过 review 和 bug 修复，可直接使用 |
-| `DEMO-SPEC-v1.md` | 设计基准 | 首版 demo 精简落地规格书（prompt、算法、界面） |
-| `PRD-v0.1.md` | **已废弃** | 不要参考 |
-| `PRD-v0.2.md` | 远期参考 | 详尽字段表和场景模板，留作后续迭代 |
-| `ui设计.md` | **已过时** | 已被 GEMINI-PROMPT 中的界面规格取代 |
+| `context-gemini-prompt.md` | **给 Gemini 的开发指令** | 包含完整代码规格，已经过 review 和 bug 修复，可直接使用 |
+| `spec-demo-v1.md` | 设计基准 | 首版 demo 精简落地规格书（prompt、算法、界面） |
+| `prd-v0.1-deprecated.md` | **已废弃** | 不要参考 |
+| `prd-v0.2.md` | 远期参考 | 详尽字段表和场景模板，留作后续迭代 |
+| `design-ui-v0.1.md` | **已过时** | 已被 context-gemini-prompt 中的界面规格取代 |
 | `*.png` | 参考 | 项目总览图，对外 pitch 用 |
 
 ## 关键决策记录
@@ -38,9 +38,9 @@
 7. **null 值防护**：diagnose() 中所有参数用 `.get() or 默认值` 兜底
 8. **UI 不卡顿**：所有 Kimi 调用在 QThread 中执行，通过 Signal 通知主线程更新
 
-## GEMINI-PROMPT.md 已修复的 bug
+## context-gemini-prompt.md 已修复的 bug
 
-Gemini 在编辑 GEMINI-PROMPT.md 时引入了几个问题，已由 Claude 修复：
+Gemini 在编辑 context-gemini-prompt.md 时引入了几个问题，已由 Claude 修复：
 - `__init__` 中 `_setup_ui()` 和 `_build_ui()` 重复调用 → 合并为 `_build_ui()`
 - `_build_menu()` 被调用两次 → 改为一次
 - `self._report_text = ""` 初始化丢失 → 补回
@@ -80,13 +80,13 @@ pyinstaller --onefile --windowed main.py
 
 ## 当前进度
 
-- [x] 需求梳理（PRD v0.1 → v0.2 → DEMO-SPEC-v1 收敛）
+- [x] 需求梳理（prd-v0.1-deprecated → prd-v0.2 → spec-demo-v1 收敛）
 - [x] 提取 Prompt 设计完成
 - [x] 黑箱算法逻辑设计完成（含数字自洽校验）
 - [x] 报告生成 Prompt 设计完成
 - [x] 界面布局规格完成（左右分栏 + 4 区域 + 状态流转）
-- [x] Gemini 开发指令编写完成（GEMINI-PROMPT.md）
-- [x] GEMINI-PROMPT.md review + bug 修复（null防护/JSON容错/API Key持久化/重复调用修复）
+- [x] Gemini 开发指令编写完成（context-gemini-prompt.md）
+- [x] context-gemini-prompt.md review + bug 修复（null防护/JSON容错/API Key持久化/重复调用修复）
 - [ ] Gemini 生成代码
 - [ ] 代码调试与 Kimi API 联调
 - [ ] PyInstaller 打包为 EXE
