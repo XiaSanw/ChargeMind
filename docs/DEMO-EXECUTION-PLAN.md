@@ -1,0 +1,347 @@
+# ChargeMind 黑客松 Demo 执行计划
+
+> **前提声明**：本 Demo 暂无真实算法预测模型。算法通道为基于规则的 Stub，后续由课题组训练模型后替换。RAG 知识库为轻量版，基于已有清洗数据构建。
+>
+> **目标**：48-72 小时内产出可演示的完整产品。
+
+---
+
+## 一、Demo 核心体验
+
+```
+用户输入场站描述
+    ↓
+系统引导追问（补充关键信息）
+    ↓
+【双引擎并行诊断】
+    ├──→ 算法 Stub（基于规则的预测）← 标记为"算法预测"
+    └──→ RAG 引擎（相似场站检索 + LLM 分析）← 标记为"知识库类比"
+    ↓
+综合报告（展示冲突与共识 + 优化建议）
+```
+
+---
+
+## 二、技术架构（极简版）
+
+```
+┌─────────────────────────────────────────────┐
+│  前端：React + TypeScript + Tailwind + shadcn/ui │
+│  页面1：场站描述输入                            │
+│  页面2：引导问卷（追问关键信息）                 │
+│  页面3：诊断报告（双引擎对比 + 建议）            │
+└─────────────────────────────────────────────┘
+                      │ HTTP
+                      ▼
+┌─────────────────────────────────────────────┐
+│  后端：FastAPI + Python 3.9                   │
+│  POST /api/extract    → LLM 解析为结构化画像  │
+│  POST /api/enrich     → 追问缺失字段          │
+│  POST /api/diagnose   → 双引擎并行 → 综合报告 │
+│                      ↑ ChromaDB 本地向量库    │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## 三、关键假设与约束
+
+| 项 | 现状 | Demo 策略 |
+|---|---|---|
+| 算法模型 | ❌ 无 | **Stub**：基于规则的预测，低置信度标记 |
+| RAG 知识库 | ✅ 有 10,942 条场站数据 | ChromaDB + bge-small-zh 轻量嵌入 |
+| LLM | ✅ Kimi API 可用 | 解析输入、分析相似场站、生成报告 |
+| 前端 | ⚠️ 需新建 | React + shadcn/ui，暗色主题 |
+
+---
+
+## 四、三阶段实施
+
+### Phase A：后端骨架 + RAG（目标 4h）
+
+#### A1. 初始化 FastAPI（30min）
+
+**产出**：
+- `backend/main.py` — FastAPI 入口 + CORS
+- `backend/requirements.txt` — fastapi, uvicorn, chromadb, openai
+- `backend/config.py` — 配置管理（Kimi API Key 等）
+
+**验收**：`uvicorn main:app --reload` 启动成功，`GET /health` 返回 `{"status":"ok"}`
+
+#### A2. RAG 数据层（1h）
+
+**产出**：
+- `backend/rag/indexer.py` — 读取 `stations.jsonl`，每条转自然语言文档，生成 embedding，存入 ChromaDB
+- `backend/rag/retriever.py` — 根据场站画像检索 Top-5 相似场站
+
+**场站文档模板**（每条场站转成一段文字）：
+```
+{station_name}位于{region}，属于{business_type}，装机功率{total_installed_power}kW，
+日均充电量{avg_daily_energy_kwh}度，利用率{avg_utilization}，高峰时段{peak_hour}。
+电价结构：{electricity_fee_desc}。服务车型：{service_car_types_desc}。
+```
+
+**验收**：运行 `python backend/rag/indexer.py`，ChromaDB 成功索引 10,000+ 条记录，检索测试返回相关结果。
+
+#### A3. 算法 Stub（30min）
+
+**产出**：`backend/core/stub.py`
+
+**逻辑**：
+```python
+def predict(station_profile):
+    # 利用率 = 区域均值 × 业态系数 × 规模系数（纯规则，无模型）
+    base_util = REGION_AVG_UTIL.get(station_profile.region, 0.05)
+    biz_factor = BIZ_FACTOR.get(station_profile.biz_type, 1.0)
+    predicted_util = base_util * biz_factor
+
+    # 收益 = 充电量 × 电价 - 成本（简化公式）
+    daily_kwh = station_profile.total_power * predicted_util * 24
+    annual_revenue = daily_kwh * 365 * 0.6  # 假设平均电价+服务费 0.6元/度
+    annual_cost = station_profile.monthly_rent * 12 + station_profile.staff_count * 80000
+
+    return {
+        "predicted_utilization": round(predicted_util, 3),
+        "annual_profit": round(annual_revenue - annual_cost, 2),
+        "confidence": 0.3,  # 明确标记低置信度
+        "note": "基于区域基准的规则预测，非真实模型输出"
+    }
+```
+
+#### A4. 诊断接口（2h）
+
+**产出**：`backend/api/diagnosis.py` — 三个 POST 端点
+
+| 端点 | 功能 | 说明 |
+|------|------|------|
+| `POST /api/extract` | LLM 解析用户自然语言输入 | 输出结构化场站画像 |
+| `POST /api/enrich` | 判断缺失字段，生成追问 | 返回下一个问题 |
+| `POST /api/diagnose` | 双引擎并行诊断 | Stub + RAG → 综合报告 |
+
+**验收**：curl 三个接口均返回预期结构。
+
+---
+
+### Phase B：前端（目标 6h）
+
+#### B1. 初始化项目（30min）
+
+```bash
+cd frontend
+npm create vite@latest . -- --template react-ts
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+npm install @radix-ui/react-* class-variance-authority clsx tailwind-merge lucide-react
+```
+
+**产出**：可运行的 React + TS + Tailwind 项目骨架。
+
+#### B2. 页面1：场站描述输入（1.5h）
+
+**产出**：`frontend/src/pages/StationInputPage.tsx`
+
+- 大标题 + 副标题
+- 大文本输入框（placeholder：示例描述）
+- "使用示例"按钮
+- 提交按钮 → 调用 `/api/extract` → 跳转到问卷页
+
+#### B3. 页面2：引导问卷（2h）
+
+**产出**：`frontend/src/pages/EnrichPage.tsx`
+
+- 进度条：Step 2/3
+- 卡片式问题，一次一题，淡入动画
+- 问题列表：
+  1. 场站位置（区/街道）
+  2. 充电桩数量
+  3. 装机总功率（kW）
+  4. 周边主要业态（住宅/办公/商业/工业）
+  5. 当前电价（峰/平/谷）
+  6. 月租金（元）
+  7. 运维人员数
+- "跳过"按钮（用默认值）
+- 全部完成后 → 调用 `/api/diagnose` → 跳转到报告页
+
+#### B4. 页面3：诊断报告（2h）
+
+**产出**：`frontend/src/pages/ReportPage.tsx`
+
+- 加载动画："双引擎诊断中..." + 进度条
+- 双引擎对比面板（左右分栏）：
+  ```
+  ┌─────────────┬─────────────┐
+  │ 🔧 算法预测   │ 🧠 知识库类比 │
+  │ (Stub)       │ (RAG)        │
+  ├─────────────┼─────────────┤
+  │ 预测利用率    │ 相似场站Top3  │
+  │ 预测年利润    │ 优化建议     │
+  │ 置信度: 低   │ 相关度: 高   │
+  └─────────────┴─────────────┘
+  ```
+- 综合建议区：Markdown 渲染，每条建议带来源标签
+- "重新诊断"按钮
+
+---
+
+### Phase C：联调 + 美化（目标 2h）
+
+- 前后端联调（1h）
+- 动画效果：进度条、打字机、淡入（30min）
+- 暗色主题统一（15min）
+- 移动端适配（15min）
+
+---
+
+## 五、时间线（假设连续开发）
+
+| 时间 | 任务 |
+|------|------|
+| 0:00 - 0:30 | Phase A1：FastAPI 骨架 |
+| 0:30 - 1:30 | Phase A2：RAG 索引 + 检索 |
+| 1:30 - 2:00 | Phase A3：算法 Stub |
+| 2:00 - 4:00 | Phase A4：诊断接口（extract/enrich/diagnose）|
+| 4:00 - 4:30 | Phase B1：前端项目初始化 |
+| 4:30 - 6:00 | Phase B2：输入页 |
+| 6:00 - 8:00 | Phase B3：问卷页 |
+| 8:00 - 10:00 | Phase B4：报告页 |
+| 10:00 - 12:00 | Phase C：联调 + 美化 |
+
+**总计：约 12 小时**
+
+---
+
+## 六、算法 Stub 详细设计
+
+**明确声明**：此为基于规则的模拟预测，非真实机器学习模型。
+
+```python
+# backend/core/stub.py
+
+REGION_AVG_UTIL = {
+    "南山区": 0.0739, "福田区": 0.0467, "宝安区": 0.0311,
+    "龙岗区": 0.0303, "龙华区": 0.0121, "罗湖区": 0.0467,
+    "光明区": 0.0311, "坪山区": 0.0121, "盐田区": 0.0739,
+    "大鹏新区": 0.0121, "前海": 0.0739, "未知": 0.0453,
+}
+
+BIZ_FACTOR = {
+    "交通枢纽": 1.3, "商业区": 1.0, "办公区": 0.9,
+    "住宅区": 0.7, "工业区": 1.1, "旅游景区": 0.6,
+}
+
+def algorithm_stub(profile: dict) -> dict:
+    region = profile.get("region", "未知")
+    biz_types = profile.get("business_type", [])
+    total_power = profile.get("total_installed_power", 100)
+    pile_count = profile.get("pile_count", 10)
+    monthly_rent = profile.get("monthly_rent", 50000)
+    staff_count = profile.get("staff_count", 3)
+    price = profile.get("avg_price", 0.6)
+
+    base = REGION_AVG_UTIL.get(region, 0.0453)
+    factor = max(BIZ_FACTOR.get(b, 1.0) for b in biz_types) if biz_types else 1.0
+    predicted_util = base * factor
+
+    daily_kwh = total_power * predicted_util * 24
+    annual_revenue = daily_kwh * 365 * price
+    annual_cost = monthly_rent * 12 + staff_count * 80000
+
+    return {
+        "predicted_utilization": round(predicted_util, 3),
+        "annual_revenue": round(annual_revenue, 2),
+        "annual_cost": round(annual_cost, 2),
+        "annual_profit": round(annual_revenue - annual_cost, 2),
+        "confidence": 0.3,
+        "is_stub": True,
+        "note": "基于区域基准与业态系数的规则预测，非真实模型"
+    }
+```
+
+---
+
+## 七、RAG 流程详细设计
+
+```python
+# backend/rag/retriever.py
+
+def retrieve_similar_stations(profile: dict, n: int = 5):
+    # 1. 构建查询文本
+    query = f"{profile.get('region','')} {profile.get('business_type',[''])[0]} 充电站，装机{profile.get('total_installed_power',0)}kW"
+
+    # 2. 向量检索
+    results = collection.query(query_texts=[query], n_results=n)
+
+    # 3. 返回相似场站列表
+    return results
+
+# backend/core/rag_analyzer.py
+
+def analyze_with_rag(profile: dict, similar_stations: list) -> dict:
+    prompt = f"""
+用户场站画像：
+- 位置：{profile.get('region')}
+- 业态：{profile.get('business_type')}
+- 装机功率：{profile.get('total_installed_power')}kW
+- 桩数：{profile.get('pile_count')}
+
+相似场站数据：
+{format_stations(similar_stations)}
+
+请分析这些相似场站的成功/失败模式，并针对用户场站给出3-5条可落地的优化建议。
+要求：每条建议标注来源是"普遍规律"还是"类比推断"。
+"""
+    response = kimi_client.chat.completions.create(
+        model="kimi-latest",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return {
+        "analysis": response.choices[0].message.content,
+        "similar_count": len(similar_stations),
+        "relevance": 0.82,
+    }
+```
+
+---
+
+## 八、产出清单
+
+### 后端
+
+| 文件 | 说明 |
+|------|------|
+| `backend/main.py` | FastAPI 入口 |
+| `backend/config.py` | 配置管理 |
+| `backend/requirements.txt` | 依赖 |
+| `backend/api/diagnosis.py` | 诊断接口（extract / enrich / diagnose）|
+| `backend/core/stub.py` | 算法 Stub（基于规则）|
+| `backend/core/report.py` | 报告合并与格式化 |
+| `backend/rag/indexer.py` | 场站数据向量化索引 |
+| `backend/rag/retriever.py` | 相似场站检索 |
+
+### 前端
+
+| 文件 | 说明 |
+|------|------|
+| `frontend/src/App.tsx` | 路由 |
+| `frontend/src/pages/StationInputPage.tsx` | 场站描述输入 |
+| `frontend/src/pages/EnrichPage.tsx` | 引导问卷 |
+| `frontend/src/pages/ReportPage.tsx` | 诊断报告 |
+| `frontend/src/lib/api.ts` | API 客户端 |
+| `frontend/src/types/diagnosis.ts` | TypeScript 类型定义 |
+
+---
+
+## 九、后续替换路径
+
+| Demo 组件 | 后续替换 |
+|-----------|---------|
+| `backend/core/stub.py` | 接入真实机器学习模型（课题组训练）|
+| `backend/rag/` | 升级为混合检索（向量 + 关键词 + 重排序）|
+| `backend/api/diagnose` | 接入 LangGraph 完整流程编排 |
+| 前端页面 | 增加数据看板、历史记录、导出功能 |
+
+---
+
+*版本: v1.0*  
+*日期: 2026-04-23*  
+*标注: 算法 Stub 版本，模型待接入*
