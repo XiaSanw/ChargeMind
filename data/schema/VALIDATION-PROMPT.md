@@ -184,6 +184,40 @@
 3. 运行Python脚本进行统计和验证
 4. 输出详细的校验报告
 
+## 阶段2新增校验任务（时序聚合 + 区域填充）
+
+### H. 时序聚合校验
+1. 读取 `result_power_by_slot.csv`，统计总行数、唯一station_id数、日期范围
+2. 验证 `compute_metrics.py` 的聚合逻辑：
+   - 日均充电量 = 每天24小时功率之和的均值
+   - 利用率 = 每小时功率 / 装机功率（已截断至1.0）
+   - peak_hour/valley_hour = 按小时分组后平均功率的最高/最低时段
+3. 抽样3-5个有真实时序数据的场站，手动计算验证指标
+
+### I. 区域均值填充校验
+1. 检查 `stations_raw.jsonl`：无时序数据的场站是否 avg_daily_energy_kwh=null
+2. 检查 `stations.jsonl`：无时序数据的场站是否被填充，且 `metrics_estimated=True`
+3. 验证填充策略优先级：
+   - 优先同 region + 同 business_type
+   - 次优先同 region
+   - 兜底全市均值
+4. 检查 `estimation_source` 字段是否正确标记填充来源
+5. 验证 `season_stats` 是否也被正确填充（Demo版）
+
+### J. 双版本一致性校验
+1. 对比 `stations_raw.jsonl` 和 `stations.jsonl`，确认：
+   - 有时序数据的场站两版本指标完全一致
+   - 无时序数据的场站：raw版为null，demo版为填充值
+   - 总记录数一致（10,942）
+
+### K. 数据质量校验
+1. 检查利用率分布：最大值是否 ≤1.0
+2. 检查 avg_daily_energy_kwh 是否有异常负值
+3. 检查 peak_hour/valley_hour 是否为合法的 00:00~23:00 格式
+4. 统计 metrics_estimated 的分布（按 region）
+
+---
+
 ## 注意
 - 不要修改任何文件（只读）
 - 如发现代码问题，在报告中指出位置和修复建议，但不要直接改代码
