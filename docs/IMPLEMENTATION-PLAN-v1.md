@@ -1,3 +1,13 @@
+# ⚠️ 已归档 — 全量产品实施计划
+
+> **注意**：本文件为 ChargeMind **全量产品** 的完整实施计划（含 LangGraph、ChromaDB、算法模型、桌面端等）。
+>
+> **当前项目阶段为黑客松 Demo**，请先阅读 **[DEMO-EXECUTION-PLAN.md](./DEMO-EXECUTION-PLAN.md)**。
+>
+> 黑客松结束后，再回归本计划进行完整产品迭代。
+
+---
+
 # ChargeMind — 从Demo到完整产品实施计划
 
 ## 1. 项目愿景
