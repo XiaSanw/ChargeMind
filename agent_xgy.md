@@ -156,8 +156,35 @@ cwhdapp/
 - 变更: 3 files, +357/-357 lines
 - 内容: 恢复办公区"广场"关键词（回归修复）
 
+### 2026-04-23 阶段2完成：时序聚合 + 区域均值填充
+
+**完成内容：**
+- ✅ 编写 `backend/data/pipeline/compute_metrics.py` — 时序聚合脚本
+- ✅ 读取 `result_power_by_slot.csv`（233万行），按场站聚合计算指标
+- ✅ 计算字段：`avg_daily_energy_kwh`、`avg_utilization`、`peak_hour`、`valley_hour`、`season_stats`
+- ✅ 利用率异常截断：66个场站原始值>100%，截断至1.0
+- ✅ 生成双版本输出：
+  - `stations_raw.jsonl`（原始版，缺失标记为null）
+  - `stations.jsonl`（Demo版，区域均值填充）
+- ✅ 填充策略：region+biz_type → region_only → city_wide
+- ✅ 更新 `DATA-PIPELINE-v1.md` 和 `VALIDATION-PROMPT.md`
+
+**核心指标：**
+| 指标 | 数值 |
+|------|------|
+| 总场站数 | 10,942 |
+| 有真实时序数据 | 7,013（64.1%）|
+| 区域均值填充 | 3,929（35.9%）|
+| 区域+业态组合组数 | 103 |
+| 区域-only组数 | 12 |
+
+**Git 提交记录：**
+- Commit: `a75c1c8`
+- 时间: 2026-04-23
+- 变更: 6 files, +22,361 lines
+- 内容: 阶段2时序聚合 + 区域均值填充
+
 **待办 / 阻塞：**
-- [ ] 阶段2：时序聚合（compute_metrics.py）— 读取result_power_by_slot.csv，计算利用率/日均充电量/高峰时段
 - [ ] 阶段3：质量评分和pipeline_report.json生成
 - [ ] 初始化React前端项目
 - [ ] 搭建FastAPI后端骨架
@@ -181,3 +208,4 @@ cwhdapp/
 3. **每次 git pull 后 → 读取 team/ 下所有 agent_*.md**
 4. **命名规范**：`agent_{姓名缩写}.md`，放在项目根目录
 5. **内容规范**：项目概述 → 职责 → 工作记录（时间线）→ 待办/阻塞
+6. **⚠️ Git commit 必须用中文** — 所有 commit message 使用中文编写，便于团队阅读和历史追溯
