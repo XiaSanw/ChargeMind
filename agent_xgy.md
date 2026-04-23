@@ -126,6 +126,12 @@ cwhdapp/
 - 修复"公园大地"误判为旅游景区（加住宅区优先匹配）
 - 修正文档覆盖率预期（去重后真实值）
 
+**Git 提交记录：**
+- Commit: `40aeefc`
+- 时间: 2026-04-23
+- 变更: 21 files, +13,666 lines
+- 内容: 数据清洗阶段1完成 + 团队协作文档
+
 **待办 / 阻塞：**
 - [ ] 阶段2：时序聚合（compute_metrics.py）— 读取result_power_by_slot.csv，计算利用率/日均充电量/高峰时段
 - [ ] 阶段3：质量评分和pipeline_report.json生成
