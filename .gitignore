@@ -1,6 +1,9 @@
 # 运行时配置（含 API Key）
 config.json
 
+# 归档目录
+archive/
+
 # Python
 __pycache__/
 *.pyc
