@@ -49,9 +49,20 @@
 | 项 | 现状 | Demo 策略 |
 |---|---|---|
 | 算法模型 | ❌ 无 | **Stub**：基于规则的预测，低置信度标记 |
-| RAG 知识库 | ✅ 有 10,942 条场站数据 | ChromaDB + bge-small-zh 轻量嵌入 |
+| RAG 知识库 | ✅ 有 10,942 条场站数据 | ChromaDB + 轻量嵌入 |
 | LLM | ✅ Kimi API 可用 | 解析输入、分析相似场站、生成报告 |
 | 前端 | ⚠️ 需新建 | React + shadcn/ui，暗色主题 |
+
+### LLM 配置
+
+```bash
+# .env 文件（已创建 .env.example，实际 key 不提交 git）
+KIMI_API_KEY=sk-xxx
+KIMI_BASE_URL=https://api.kimi.com/coding/v1
+DEFAULT_MODEL=kimi-latest
+```
+
+> ⚠️ **安全提醒**：API Key 为敏感信息，仅在本地 `.env` 文件中使用，**不要提交到 git**。
 
 ---
 

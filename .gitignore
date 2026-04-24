@@ -25,3 +25,4 @@ build/
 # Claude Code
 .claude/
 backend/chroma_db/
+.env
