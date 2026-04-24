@@ -12,7 +12,9 @@ from chromadb.config import Settings
 from config import KIMI_API_KEY, KIMI_BASE_URL
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_PATH = PROJECT_ROOT.parent / "data" / "cleaned" / "stations.jsonl"
+# 优先使用带网格画像的数据，若不存在则回退到旧版
+GRID_PATH = PROJECT_ROOT.parent / "data" / "cleaned" / "stations_with_grid.jsonl"
+DATA_PATH = GRID_PATH if GRID_PATH.exists() else PROJECT_ROOT.parent / "data" / "cleaned" / "stations.jsonl"
 CHROMA_PATH = PROJECT_ROOT / "chroma_db"
 
 # Kimi Embedding 客户端
@@ -45,7 +47,14 @@ def build_station_doc(station: dict) -> str:
     if cars:
         parts.append(f"服务{cars}")
 
-    return "，".join(parts)
+    doc = "，".join(parts)
+
+    # 拼接网格车辆生态文本（若存在）
+    grid_text = station.get("grid_context_text")
+    if grid_text:
+        doc += "。周边车辆生态：" + grid_text
+
+    return doc
 
 
 def get_embeddings(texts: list, retries: int = 3) -> list:
@@ -123,8 +132,8 @@ def index_stations(force_rebuild: bool = False):
 
         ids = [s["station_id"] for s in batch]
         docs = [build_station_doc(s) for s in batch]
-        metadatas = [
-            {
+        def _build_metadata(s):
+            meta = {
                 "station_name": str(s.get("station_name", "") or ""),
                 "region": str(s.get("region", "") or ""),
                 "business_type": ",".join(s.get("business_type", []) or []),
@@ -134,8 +143,20 @@ def index_stations(force_rebuild: bool = False):
                 "peak_hour": str(s.get("peak_hour", "") or ""),
                 "has_timeseries_data": bool(s.get("has_timeseries_data", False)),
             }
-            for s in batch
-        ]
+            # 网格画像字段（若存在）
+            gp = s.get("grid_vehicle_profile")
+            if gp:
+                meta["has_grid_profile"] = True
+                meta["grid_code"] = str(gp.get("grid_code", "") or "")
+                meta["grid_avg_daily_cars"] = _safe_float(gp.get("avg_daily_car_trips"))
+                meta["grid_peak_hour_cars"] = _safe_float(gp.get("peak_hour_car_trips"))
+                meta["grid_avg_soc"] = _safe_float(gp.get("avg_soc"))
+                meta["grid_avg_run_radius_m"] = _safe_float(gp.get("avg_run_radius_m"))
+            else:
+                meta["has_grid_profile"] = False
+            return meta
+
+        metadatas = [_build_metadata(s) for s in batch]
 
         # 调用 Kimi API 生成 embedding
         embeddings = get_embeddings(docs)
