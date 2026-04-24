@@ -12,7 +12,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from core.stub import algorithm_stub
-from rag.retriever import retrieve_similar
+from core.reranker import chat_rerank
+from rag.retriever import retrieve_for_rerank, retrieve_similar
 
 router = APIRouter()
 
@@ -158,11 +159,31 @@ def diagnose(req: DiagnoseRequest):
     # 1. 算法 Stub
     stub_result = algorithm_stub(profile)
 
-    # 2. RAG 检索相似场站
+    # 2. RAG 检索 + Chat 重排序
+    similar = []
+    rerank_info = {"used": False, "method": "vector"}
     try:
-        similar = retrieve_similar(profile, n_results=5)
+        if LLM_AVAILABLE:
+            # 向量检索 Top-8 → Chat 精排 Top-5
+            candidates = retrieve_for_rerank(profile)
+            if len(candidates) > 0:
+                similar = chat_rerank(profile, candidates, chat_client, CHAT_MODEL)
+                rerank_info["used"] = True
+                rerank_info["method"] = "chat"
+                rerank_info["candidate_count"] = len(candidates)
+                rerank_info["selected_count"] = len(similar)
+            else:
+                similar = []
+        else:
+            # 降级：纯向量检索
+            similar = retrieve_similar(profile, n_results=5)
+            rerank_info["method"] = "vector"
     except Exception as e:
-        similar = []
+        try:
+            similar = retrieve_similar(profile, n_results=5)
+            rerank_info["error"] = str(e)
+        except Exception:
+            similar = []
 
     # 3. RAG LLM 分析（如有 LLM）
     rag_analysis = ""
@@ -180,6 +201,7 @@ def diagnose(req: DiagnoseRequest):
         "rag": {
             "similar_stations": similar,
             "analysis": rag_analysis,
+            "rerank_info": rerank_info,
         },
         "report": report,
     }

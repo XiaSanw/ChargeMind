@@ -6,7 +6,10 @@ from rag.indexer import get_collection, get_embeddings
 
 def retrieve_similar(profile: dict, n_results: int = 5):
     """
-    根据场站画像检索相似场站
+    根据场站画像检索相似场站。
+
+    查询策略：使用结构化图表征场站核心特征（区域+业态+功率+桩数），
+    区域放在句首保证地理位置匹配权重，确保检索结果首先是同片区可比场站。
     """
     collection = get_collection()
 
@@ -17,16 +20,18 @@ def retrieve_similar(profile: dict, n_results: int = 5):
 
     biz_str = biz[0] if biz else ""
 
-    # 构建查询文本
-    query = (
-        f"{region}{biz_str}充电站，"
-        f"装机功率{power}kW，{pile_count}个桩"
-    )
+    # 构建查询文本：区域权重最高（同片区才有对标价值）
+    query_parts = [f"{region}{biz_str}充电站"]
+    if power:
+        query_parts.append(f"装机功率{power}kW")
+    if pile_count:
+        query_parts.append(f"{pile_count}个桩")
+    query = "，".join(query_parts)
 
     # 调用 Kimi API 生成查询向量
     query_embedding = get_embeddings([query])[0]
 
-    # 向量检索（传入预计算 embedding）
+    # 向量检索
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=n_results,
@@ -49,3 +54,11 @@ def retrieve_similar(profile: dict, n_results: int = 5):
         })
 
     return stations
+
+
+def retrieve_for_rerank(profile: dict) -> list:
+    """
+    检索候选场站用于 Chat 重排序。
+    取 Top-8 给 Chat 模型留足选择空间。
+    """
+    return retrieve_similar(profile, n_results=8)
