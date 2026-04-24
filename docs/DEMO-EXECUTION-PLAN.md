@@ -261,45 +261,51 @@ def algorithm_stub(profile: dict) -> dict:
 
 ## 七、RAG 流程详细设计
 
-```python
-# backend/rag/retriever.py
+### 检索策略：三层漏斗 + 多路召回
 
-def retrieve_similar_stations(profile: dict, n: int = 5):
-    # 1. 构建查询文本
-    query = f"{profile.get('region','')} {profile.get('business_type',[''])[0]} 充电站，装机{profile.get('total_installed_power',0)}kW"
+**核心决策**：
+- 业态：**可以放宽**（不严格限定，LLM 能看到跨业态创新做法）
+- 区域：**分层**（先同区，不够再扩全市）
+- 对标数量：**5-8 条**
 
-    # 2. 向量检索
-    results = collection.query(query_texts=[query], n_results=n)
-
-    # 3. 返回相似场站列表
-    return results
-
-# backend/core/rag_analyzer.py
-
-def analyze_with_rag(profile: dict, similar_stations: list) -> dict:
-    prompt = f"""
-用户场站画像：
-- 位置：{profile.get('region')}
-- 业态：{profile.get('business_type')}
-- 装机功率：{profile.get('total_installed_power')}kW
-- 桩数：{profile.get('pile_count')}
-
-相似场站数据：
-{format_stations(similar_stations)}
-
-请分析这些相似场站的成功/失败模式，并针对用户场站给出3-5条可落地的优化建议。
-要求：每条建议标注来源是"普遍规律"还是"类比推断"。
-"""
-    response = kimi_client.chat.completions.create(
-        model="kimi-latest",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return {
-        "analysis": response.choices[0].message.content,
-        "similar_count": len(similar_stations),
-        "relevance": 0.82,
-    }
 ```
+用户描述 → 【第一层：精确匹配】
+            region=用户区 AND biz_type 包含用户业态
+            → 如果 ≥5 条，进入向量排序
+            
+            如果 < 5 条 → 【第二层：放宽业态】
+            region=用户区 AND biz_type 放宽（近似业态）
+            → 如果 ≥5 条，进入向量排序
+            
+            如果还 < 5 条 → 【第三层：去掉区域限制】
+            biz_type 包含用户业态（全市范围）
+            → 一定够（10,000+ 数据）
+            
+            ↓
+            【向量排序】按语义相似度排序，取 Top-5~8
+```
+
+### 给 LLM 的输入格式
+
+不是文字段落，而是一张**结构化对比表**，LLM 像领域专家一样读数据找规律。
+
+| 组别 | 字段 | 说明 |
+|------|------|------|
+| **身份定位** | 场站名称、区域、业态类型、数据可信度 | 让 LLM 知道"这是谁" |
+| **规模配置** | 装机总功率、充电桩数、快充桩数、慢充桩数、快充占比、功率段分布 | "硬件配得对不对" |
+| **运营效率** | 利用率、日均充电量、单桩日均充电量、高峰时段、低谷时段 | "赚得够不够" |
+| **经济模型** | 平均电价、峰谷价差、服务费 | "花得值不值" |
+
+> ⚠️ **表头字段待数据完备后更新**：当前为初版设计，等所有数据清洗入库后，根据实际可用字段调整对比表结构。
+
+### LLM 提升点发现模式（示例）
+
+| 对比发现 | LLM 输出 |
+|---------|---------|
+| 用户利用率 3% vs 对标A 9% | "利用率有 3 倍提升空间" |
+| 用户快充占比 90% vs 对标C 55% | "快充配比过高，参考对标C放慢充提升周转" |
+| 用户高峰 14:00（电价高）vs 对标B 低谷 03:00 | "峰谷结构可优化，引导夜间充电降低成本" |
+| 用户单桩日均 40度 vs 对标A 77度 | "单桩效率偏低，建议检查桩位布局或引流策略" |
 
 ---
 
