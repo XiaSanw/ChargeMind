@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useDiagnosis } from '@/store/DiagnosisContext';
+import { adaptLegacyToDashboard } from '@/lib/adaptLegacyToDashboard';
 import Headline from '@/components/dashboard/Headline';
 import StationRadarChart from '@/components/dashboard/RadarChart';
 import KPICards from '@/components/dashboard/KPICards';
@@ -7,13 +8,13 @@ import BenchmarkChart from '@/components/dashboard/BenchmarkChart';
 import TrendChart from '@/components/dashboard/TrendChart';
 import PathCards from '@/components/dashboard/PathCards';
 import DetailSection from '@/components/dashboard/DetailSection';
-import { mockDiagnosis } from '@/data/mockDiagnosis';
 
 function LoadingOverlay() {
   const phases = [
     '正在解析场站画像...',
-    '正在检索相似场站（RAG 引擎）...',
-    '正在生成优化建议（DeepSeek v4-pro）...',
+    '算法 Stub 预测收益中...',
+    'RAG 检索相似场站...',
+    '生成仪表盘数据...',
   ];
 
   return (
@@ -31,14 +32,11 @@ function LoadingOverlay() {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold">双引擎诊断中...</h2>
           <p className="text-sm text-muted-foreground animate-pulse">
-            {phases[Math.floor(Date.now() / 3000) % phases.length]}
+            {phases[Math.floor(Date.now() / 2500) % phases.length]}
           </p>
         </div>
         <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary animate-pulse"
-            style={{ width: '60%' }}
-          />
+          <div className="h-full rounded-full bg-primary animate-pulse" style={{ width: '60%' }} />
         </div>
       </div>
     </div>
@@ -46,17 +44,23 @@ function LoadingOverlay() {
 }
 
 export default function ReportPage() {
-  const { isDiagnosing, error, reset, setError } = useDiagnosis();
+  const { diagnoseResult, isDiagnosing, error, reset, setError } = useDiagnosis();
 
   const handleRetry = useCallback(() => {
     setError(null);
     reset();
   }, [setError, reset]);
 
-  // Demo 阶段使用 Mock 数据展示新仪表盘
-  // TODO: 后端返回 DiagnosisResult 结构后，替换为真实数据
-  const diagnosis = mockDiagnosis;
-  const { dashboard, kpi_cards, benchmark, trend_projection, paths, detail_text } = diagnosis;
+  // 将后端返回的旧格式数据适配为新仪表盘格式
+  const dashboardData = useMemo(() => {
+    if (!diagnoseResult) return null;
+    try {
+      return adaptLegacyToDashboard(diagnoseResult);
+    } catch (e) {
+      console.error('适配仪表盘数据失败:', e);
+      return null;
+    }
+  }, [diagnoseResult]);
 
   if (isDiagnosing) {
     return <LoadingOverlay />;
@@ -85,6 +89,25 @@ export default function ReportPage() {
       </div>
     );
   }
+
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold">暂无诊断结果</h2>
+          <p className="text-muted-foreground">请先完成场站信息录入</p>
+          <button
+            onClick={reset}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all"
+          >
+            开始诊断
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { dashboard, kpi_cards, benchmark, trend_projection, paths, detail_text } = dashboardData;
 
   return (
     <div className="min-h-screen px-4 py-8 md:py-12">
@@ -141,7 +164,7 @@ export default function ReportPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground pb-8">
-          ChargeMind Demo · 当前为 Mock 数据展示 · 算法 Stub 预测 · 数据来源：深圳 10,942 条场站记录
+          ChargeMind Demo · 数据来源：算法 Stub + RAG 知识库（{diagnoseResult?.rag.similar_stations.length || 0} 个相似场站）
         </p>
       </div>
     </div>
