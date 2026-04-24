@@ -56,13 +56,15 @@
 ### LLM 配置
 
 ```bash
-# .env 文件（已创建 .env.example，实际 key 不提交 git）
+# .env 文件
 KIMI_API_KEY=sk-xxx
 KIMI_BASE_URL=https://api.kimi.com/coding/v1
 DEFAULT_MODEL=kimi-latest
 ```
 
-> ⚠️ **安全提醒**：API Key 为敏感信息，仅在本地 `.env` 文件中使用，**不要提交到 git**。
+> **备注**：当前仓库为 **私有仓库**，`.env` 文件已提交 git 供团队共享。
+>
+> ⚠️ **TODO: 仓库转 public 前必须删除 `.env` 文件或清空 KEY**，避免 API Key 泄露。
 
 ---
 
