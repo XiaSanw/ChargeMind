@@ -23,7 +23,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 # 默认模型
-CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-chat")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-v4-pro")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "moonshot-v1-embedding")
 
 # CORS（开发环境放行所有）

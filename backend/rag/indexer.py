@@ -23,43 +23,48 @@ BATCH_SIZE = 100  # 实测最优 batch size（5秒/100条）
 
 
 def build_station_doc(station: dict) -> str:
-    """把场站结构化数据转成自然语言文档"""
-    name = station.get("station_name", "未知场站")
-    region = station.get("region", "未知区域")
-    biz = ",".join(station.get("business_type", []) or ["未知业态"])
+    """把场站结构化数据转成精简自然语言文档（控制token长度）"""
+    region = station.get("region", "未知")
+    biz = ",".join(station.get("business_type", []) or [""])
     power = station.get("total_installed_power", 0)
     energy = station.get("avg_daily_energy_kwh", 0)
     util = station.get("avg_utilization", 0)
-    peak = station.get("peak_hour", "未知")
-    valley = station.get("valley_hour", "未知")
+    peak = station.get("peak_hour", "")
     cars = ",".join(station.get("service_car_types_desc", []) or [])
-    land = station.get("land_property_desc", "")
 
-    fee = station.get("electricity_fee_parsed") or {}
-    if fee and fee.get("periods"):
-        prices = [f"{p['start']}-{p['end']}:{p['price']}元" for p in fee["periods"]]
-        fee_desc = "；".join(prices)
-    else:
-        fee_desc = "未知"
+    # 精简文档：保留最核心的检索维度
+    parts = [f"{region}{biz}充电站"]
+    if power:
+        parts.append(f"装机{power}kW")
+    if energy:
+        parts.append(f"日均{energy}度")
+    if util is not None:
+        parts.append(f"利用率{util}")
+    if peak:
+        parts.append(f"高峰{peak}")
+    if cars:
+        parts.append(f"服务{cars}")
 
-    doc = (
-        f"{name}位于{region}，属于{biz}。"
-        f"装机功率{power}kW，"
-        f"日均充电量{energy}度，利用率{util}，"
-        f"高峰时段{peak}，低谷时段{valley}。"
-        f"服务车型：{cars}。土地性质：{land}。"
-        f"电价结构：{fee_desc}。"
-    )
-    return doc
+    return "，".join(parts)
 
 
-def get_embeddings(texts: list) -> list:
-    """调用 Kimi Embedding API 生成向量"""
-    resp = kimi_client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=texts,
-    )
-    return [d.embedding for d in resp.data]
+def get_embeddings(texts: list, retries: int = 3) -> list:
+    """调用 Kimi Embedding API 生成向量（带重试）"""
+    import time
+    for attempt in range(retries):
+        try:
+            resp = kimi_client.embeddings.create(
+                model=EMBEDDING_MODEL,
+                input=texts,
+            )
+            return [d.embedding for d in resp.data]
+        except Exception as e:
+            if attempt < retries - 1:
+                wait = 2 * (attempt + 1)
+                print(f"    [WARN] Embedding 失败，{wait}s 后重试 ({attempt+1}/{retries}): {e}")
+                time.sleep(wait)
+            else:
+                raise
 
 
 def index_stations(force_rebuild: bool = False):
@@ -89,7 +94,22 @@ def index_stations(force_rebuild: bool = False):
         for line in f:
             stations.append(json.loads(line))
 
-    print(f"[RAG] 开始索引 {len(stations)} 条场站数据...")
+    # 断点续传：检测已存在的记录
+    existing_ids = set()
+    try:
+        all_existing = collection.get(include=[])
+        existing_ids = set(all_existing["ids"])
+        print(f"[RAG] 发现已有 {len(existing_ids)} 条记录，将跳过")
+    except Exception:
+        pass
+
+    # 过滤掉已索引的
+    stations_to_index = [s for s in stations if s["station_id"] not in existing_ids]
+    if not stations_to_index:
+        print("[RAG] 所有记录已索引，无需重建")
+        return collection
+
+    print(f"[RAG] 开始索引 {len(stations_to_index)} 条新场站数据（总 {len(stations)} 条）...")
 
     def _safe_float(v):
         try:
@@ -97,9 +117,9 @@ def index_stations(force_rebuild: bool = False):
         except (TypeError, ValueError):
             return 0.0
 
-    total = len(stations)
+    total = len(stations_to_index)
     for i in range(0, total, BATCH_SIZE):
-        batch = stations[i : i + BATCH_SIZE]
+        batch = stations_to_index[i : i + BATCH_SIZE]
 
         ids = [s["station_id"] for s in batch]
         docs = [build_station_doc(s) for s in batch]
