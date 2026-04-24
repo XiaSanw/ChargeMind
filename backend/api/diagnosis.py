@@ -16,19 +16,19 @@ from rag.retriever import retrieve_similar
 
 router = APIRouter()
 
-# 尝试初始化 LLM 客户端
+# 尝试初始化 LLM 客户端（DeepSeek 用于 Chat Completion）
 try:
     from openai import OpenAI
-    client = OpenAI(
-        api_key=os.getenv("KIMI_API_KEY", ""),
-        base_url=os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1"),
+    chat_client = OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY", ""),
+        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
     )
-    LLM_AVAILABLE = bool(os.getenv("KIMI_API_KEY"))
+    LLM_AVAILABLE = bool(os.getenv("DEEPSEEK_API_KEY"))
 except Exception:
-    client = None
+    chat_client = None
     LLM_AVAILABLE = False
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "kimi-latest")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-chat")
 
 # ============ 数据模型 ============
 
@@ -101,8 +101,8 @@ def extract_profile(req: ExtractRequest):
 请只输出 JSON，不要其他内容。"""
 
     try:
-        resp = client.chat.completions.create(
-            model=DEFAULT_MODEL,
+        resp = chat_client.chat.completions.create(
+            model=CHAT_MODEL,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
@@ -245,8 +245,8 @@ def _rag_analyze(profile: dict, similar: list) -> str:
 """
 
     try:
-        resp = client.chat.completions.create(
-            model=DEFAULT_MODEL,
+        resp = chat_client.chat.completions.create(
+            model=CHAT_MODEL,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.choices[0].message.content

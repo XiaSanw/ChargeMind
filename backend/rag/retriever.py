@@ -1,7 +1,7 @@
 """
-相似场站检索器
+相似场站检索器 — Kimi Embedding API 版本
 """
-from rag.indexer import get_collection
+from rag.indexer import get_collection, get_embeddings
 
 
 def retrieve_similar(profile: dict, n_results: int = 5):
@@ -17,14 +17,18 @@ def retrieve_similar(profile: dict, n_results: int = 5):
 
     biz_str = biz[0] if biz else ""
 
-    # 构建查询文本（与 indexer 的文档格式对齐）
+    # 构建查询文本
     query = (
         f"{region}{biz_str}充电站，"
         f"装机功率{power}kW，{pile_count}个桩"
     )
 
+    # 调用 Kimi API 生成查询向量
+    query_embedding = get_embeddings([query])[0]
+
+    # 向量检索（传入预计算 embedding）
     results = collection.query(
-        query_texts=[query],
+        query_embeddings=[query_embedding],
         n_results=n_results,
         include=["documents", "metadatas", "distances"],
     )
@@ -41,7 +45,7 @@ def retrieve_similar(profile: dict, n_results: int = 5):
             "station_id": ids[i],
             "document": docs[i],
             "metadata": metas[i],
-            "similarity_score": round(1 - distances[i], 4),  # cosine distance → similarity
+            "similarity_score": round(1 - distances[i], 4),
         })
 
     return stations
