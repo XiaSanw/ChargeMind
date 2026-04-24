@@ -3,15 +3,15 @@ import { useDiagnosis } from '@/store/DiagnosisContext';
 import { enrichProfile, diagnoseStation } from '@/lib/api';
 import type { NextQuestion, StationProfile } from '@/types/diagnosis';
 
-// 与后端 stub.py 默认值保持一致，跳过问题时用这些值填充
-const SKIP_DEFAULTS: Record<string, unknown> = {
-  region: '未知',
-  business_type: [],
-  total_installed_power: 100,
-  pile_count: 10,
-  monthly_rent: 50000,
-  staff_count: 3,
-  avg_price: 0.6,
+// 每个问题的示例回答（显示在问题下方引导用户）
+const QUESTION_EXAMPLES: Record<string, string> = {
+  region: '例如：南山区、福田区、宝安区',
+  business_type: '可多选，例如：办公区 + 商业区',
+  total_installed_power: '例如：1200（单位：kW）',
+  pile_count: '例如：20（个）',
+  monthly_rent: '例如：60000（元/月）',
+  staff_count: '例如：4（人）',
+  avg_price: '例如：0.8（元/度，含电价+服务费）',
 };
 
 export default function EnrichPage() {
@@ -81,11 +81,6 @@ export default function EnrichPage() {
       val = isNaN(num) ? undefined : num;
     }
 
-    // 空值视为跳过，使用默认值
-    if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) {
-      val = SKIP_DEFAULTS[question.key];
-    }
-
     // 构造更新后的 profile（同步，不依赖 Context state 延迟）
     const updatedProfile: StationProfile = { ...profile, [question.key]: val };
 
@@ -94,16 +89,7 @@ export default function EnrichPage() {
     await fetchNextQuestion(updatedProfile);
   }, [question, inputValue, profile, updateProfileField, fetchNextQuestion]);
 
-  const handleSkip = useCallback(async () => {
-    if (!question || !profile) return;
 
-    const defaultVal = SKIP_DEFAULTS[question.key];
-    const updatedProfile: StationProfile = { ...profile, [question.key]: defaultVal };
-
-    updateProfileField(question.key, defaultVal);
-    setHistory((prev) => [...prev, { q: question, a: '跳过' }]);
-    await fetchNextQuestion(updatedProfile);
-  }, [question, profile, updateProfileField, fetchNextQuestion]);
 
   const answeredCount = history.length;
   const totalSteps = answeredCount + missingCount;
@@ -148,6 +134,9 @@ export default function EnrichPage() {
                 问题 {answeredCount + 1}
               </span>
               <h2 className="text-xl font-semibold text-foreground">{question.question}</h2>
+              {QUESTION_EXAMPLES[question.key] && (
+                <p className="text-sm text-muted-foreground">💡 {QUESTION_EXAMPLES[question.key]}</p>
+              )}
             </div>
 
             {/* Input by type */}
@@ -209,16 +198,10 @@ export default function EnrichPage() {
               />
             )}
 
-            <div className="flex items-center justify-between pt-2">
-              <button
-                onClick={handleSkip}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                跳过此题
-              </button>
+            <div className="flex items-center justify-end pt-2">
               <button
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || (inputValue === '' || inputValue === null || (Array.isArray(inputValue) && inputValue.length === 0))}
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
               >
                 {loading ? '加载中...' : '下一步 →'}
