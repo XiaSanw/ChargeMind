@@ -54,9 +54,9 @@
 | 诊断接口 | ✅ 完成 | `/extract` `/enrich` `/diagnose` 三端点 |
 | 双 API 配置 | ✅ 完成 | Kimi Embedding + DeepSeek v4-pro Chat |
 | 向量数据库 | ✅ 已提交git | `backend/chroma_db/`，团队成员无需重建 |
-| **前端** | ⏳ **待开始** | 需要选型并初始化 |
+| **前端** | 🚧 **进行中** | React + TS + Tailwind v4，三页面条件渲染，Context 状态管理 |
 | 报告生成模块 | ⏳ 待开始 | `core/report.py` 待抽取 |
-| 前后端联调 | ⏳ 待开始 | 待前端完成后进行 |
+| 前后端联调 | 🚧 **进行中** | 前端开发中同步验证 |
 
 ---
 
@@ -567,3 +567,27 @@ def algorithm_stub(profile: dict) -> dict:
 *版本: v1.2*  
 *日期: 2026-04-24*  
 *标注: 算法 Stub 版本，RAG 索引完成，前端待启动，Prompt 规范已定义*
+
+---
+
+## 更新记录
+
+### 2026-04-24 前端开发启动
+
+**技术决策调整（基于评审报告 + 实施权衡）：**
+
+| 议题 | 评审方案 | 实际执行方案 | 理由 |
+|------|---------|-------------|------|
+| 状态管理 | Zustand | React Context + useState | 线性三页面流程，Context 足够，少一依赖 |
+| 路由 | React Router | 条件渲染 (`useState` 控制 page) | 严格线性流程，省掉路由配置 |
+| shadcn/ui | CLI 初始化 | 手动 Tailwind v4 + copy 组件源码 | 避免 Tailwind v4 / React 19 兼容性风险 |
+| Mock 兜底 | 未提及 | 前端内置 mock 数据 | 保证 Demo 不因 LLM API 故障而中断 |
+
+**开发启动检查清单：**
+- [ ] 安装依赖（Tailwind v4 + react-markdown + remark-gfm）
+- [ ] 清理模板文件
+- [ ] 配置 Vite 代理 + 路径别名
+- [ ] 三页面实现（输入 / 问卷 / 报告）
+- [ ] 前后端联调
+
+**目标**：5-6 小时内产出可演示的完整前端。
