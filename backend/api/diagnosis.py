@@ -83,20 +83,25 @@ def extract_profile(req: ExtractRequest):
         profile = _mock_extract(text)
         return {"profile": profile, "llm_used": False}
 
-    prompt = f"""请从以下用户描述中提取充电场站的关键信息，输出为 JSON：
+    prompt = f"""请从以下用户描述中提取充电场站的关键信息，输出为 JSON。
+
+【核心规则】
+- 只提取用户**明确提到**的信息
+- 用户**没有提到**的字段，必须设为 null 或空数组，禁止推断、禁止填充默认值
+- 不要根据"充电站"推断电价，不要根据区域推断租金
 
 用户描述：""" + req.user_input + """
 
-需要的字段：
-- station_name: 场站名称（如有）
-- region: 所在行政区（如南山区、福田区等）
-- business_type: 周边业态列表（如["办公区","商业区"]）
-- total_installed_power: 装机总功率（kW，数字）
-- pile_count: 充电桩数量（数字）
-- monthly_rent: 月租金（元，数字）
-- staff_count: 运维人数（数字）
-- avg_price: 平均电价+服务费（元/度，数字）
-- peak_hour: 高峰时段（如"09:00"）
+需要的字段（未提及必须填 null）：
+- station_name: 场站名称（如有，否则 null）
+- region: 所在行政区（如南山区，未提及则 null）
+- business_type: 周边业态列表（未提及则 []）
+- total_installed_power: 装机总功率 kW（未提及则 null）
+- pile_count: 充电桩数量（未提及则 null）
+- monthly_rent: 月租金元（未提及则 null）
+- staff_count: 运维人数（未提及则 null）
+- avg_price: 平均电价+服务费 元/度（未提及则 null）
+- peak_hour: 高峰时段（未提及则 null）
 
 请只输出 JSON，不要其他内容。"""
 

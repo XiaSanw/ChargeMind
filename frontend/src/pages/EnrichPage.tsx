@@ -1,7 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDiagnosis } from '@/store/DiagnosisContext';
 import { enrichProfile, diagnoseStation } from '@/lib/api';
-import type { NextQuestion } from '@/types/diagnosis';
+import type { NextQuestion, StationProfile } from '@/types/diagnosis';
+
+// 与后端 stub.py 默认值保持一致，跳过问题时用这些值填充
+const SKIP_DEFAULTS: Record<string, unknown> = {
+  region: '未知',
+  business_type: [],
+  total_installed_power: 100,
+  pile_count: 10,
+  monthly_rent: 50000,
+  staff_count: 3,
+  avg_price: 0.6,
+};
 
 export default function EnrichPage() {
   const { profile, updateProfileField, setDiagnoseResult, setCurrentPage, setError, setIsDiagnosing } = useDiagnosis();
@@ -12,15 +23,17 @@ export default function EnrichPage() {
   const [inputValue, setInputValue] = useState<string | string[]>('');
   const [history, setHistory] = useState<{ q: NextQuestion; a: string | string[] }[]>([]);
 
-  const fetchNextQuestion = useCallback(async () => {
-    if (!profile) return;
+  // fetchNextQuestion 接受可选的 currentProfile，避免闭包 stale profile 问题
+  const fetchNextQuestion = useCallback(async (currentProfile?: StationProfile) => {
+    const p = currentProfile || profile;
+    if (!p) return;
     setLoading(true);
     try {
-      const { data } = await enrichProfile(profile);
+      const { data } = await enrichProfile(p);
       if (data.complete) {
         setQuestion(null);
         setMissingCount(0);
-        await runDiagnose();
+        await runDiagnose(p);
       } else {
         setQuestion(data.next_question || null);
         setMissingCount(data.missing_count);
@@ -33,13 +46,14 @@ export default function EnrichPage() {
     }
   }, [profile, setError]);
 
-  const runDiagnose = useCallback(async () => {
-    if (!profile) return;
+  const runDiagnose = useCallback(async (currentProfile?: StationProfile) => {
+    const p = currentProfile || profile;
+    if (!p) return;
     setDiagnoseLoading(true);
     setIsDiagnosing(true);
     setCurrentPage('report');
     try {
-      const { data } = await diagnoseStation(profile);
+      const { data } = await diagnoseStation(p);
       setDiagnoseResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '诊断失败');
@@ -50,6 +64,7 @@ export default function EnrichPage() {
     }
   }, [profile, setDiagnoseResult, setCurrentPage, setError, setIsDiagnosing]);
 
+  // 组件挂载时，如果 profile 存在但没有问题，自动获取第一个问题
   useEffect(() => {
     if (profile && !question && !diagnoseLoading && !loading) {
       fetchNextQuestion();
@@ -58,22 +73,37 @@ export default function EnrichPage() {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!question) return;
-    const val = question.type === 'number' ? Number(inputValue) || undefined : inputValue;
-    if (val === undefined || val === '' || (Array.isArray(val) && val.length === 0)) {
-      // Allow empty if user wants to skip
+    if (!question || !profile) return;
+
+    let val: unknown = inputValue;
+    if (question.type === 'number') {
+      const num = Number(inputValue);
+      val = isNaN(num) ? undefined : num;
     }
+
+    // 空值视为跳过，使用默认值
+    if (val === undefined || val === '' || val === null || (Array.isArray(val) && val.length === 0)) {
+      val = SKIP_DEFAULTS[question.key];
+    }
+
+    // 构造更新后的 profile（同步，不依赖 Context state 延迟）
+    const updatedProfile: StationProfile = { ...profile, [question.key]: val };
+
     updateProfileField(question.key, val);
     setHistory((prev) => [...prev, { q: question, a: inputValue }]);
-    // Small delay to let state update
-    setTimeout(() => fetchNextQuestion(), 50);
-  }, [question, inputValue, updateProfileField, fetchNextQuestion]);
+    await fetchNextQuestion(updatedProfile);
+  }, [question, inputValue, profile, updateProfileField, fetchNextQuestion]);
 
-  const handleSkip = useCallback(() => {
-    if (!question) return;
+  const handleSkip = useCallback(async () => {
+    if (!question || !profile) return;
+
+    const defaultVal = SKIP_DEFAULTS[question.key];
+    const updatedProfile: StationProfile = { ...profile, [question.key]: defaultVal };
+
+    updateProfileField(question.key, defaultVal);
     setHistory((prev) => [...prev, { q: question, a: '跳过' }]);
-    setTimeout(() => fetchNextQuestion(), 50);
-  }, [question, fetchNextQuestion]);
+    await fetchNextQuestion(updatedProfile);
+  }, [question, profile, updateProfileField, fetchNextQuestion]);
 
   const answeredCount = history.length;
   const totalSteps = answeredCount + missingCount;
