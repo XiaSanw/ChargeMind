@@ -4,28 +4,29 @@
 from rag.indexer import get_collection, get_embeddings
 
 
-def retrieve_similar(profile: dict, n_results: int = 5):
+def retrieve_similar(profile: dict, n_results: int = 10):
     """
     根据场站画像检索相似场站。
 
-    查询策略：使用结构化图表征场站核心特征（区域+业态+功率+桩数），
-    区域放在句首保证地理位置匹配权重，确保检索结果首先是同片区可比场站。
+    查询策略：
+    1. 区域权重最高 — 同片区才有对标价值
+    2. 功率作为用户意图参考（非精确匹配）— 反映用户计划的供给规模
+    3. 不依赖利用率/日均充电量等低质量估算指标 — 这些字段不参与检索
+
+    Embedding 文档以需求侧 grid 生态为核心，供给侧配置为辅助。
     """
     collection = get_collection()
 
     region = profile.get("region", "")
     biz = profile.get("business_type", [])
     power = profile.get("total_installed_power", 0)
-    pile_count = profile.get("pile_count", 10)
 
     biz_str = biz[0] if biz else ""
 
-    # 构建查询文本：区域权重最高（同片区才有对标价值）
-    query_parts = [f"{region}{biz_str}充电站"]
+    # 构建查询文本：区域 > 业态 > 功率（桩数不纳入，与相似度无关）
+    query_parts = [f"{region}{biz_str}充电需求区域"]
     if power:
         query_parts.append(f"装机功率{power}kW")
-    if pile_count:
-        query_parts.append(f"{pile_count}个桩")
     query = "，".join(query_parts)
 
     # 调用 Kimi API 生成查询向量
@@ -59,6 +60,6 @@ def retrieve_similar(profile: dict, n_results: int = 5):
 def retrieve_for_rerank(profile: dict) -> list:
     """
     检索候选场站用于 Chat 重排序。
-    取 Top-8 给 Chat 模型留足选择空间。
+    取 Top-15 给 Chat 模型留足选择空间（最终输出 Top-10）。
     """
-    return retrieve_similar(profile, n_results=8)
+    return retrieve_similar(profile, n_results=15)

@@ -1,16 +1,28 @@
 """
 ChargeMind Demo — FastAPI 入口
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS
 from api.diagnosis import router as diagnosis_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动时自动检查并构建 ChromaDB 索引（若缺失）"""
+    from rag.indexer import index_stations
+    index_stations()
+    yield
+
+
 app = FastAPI(
     title="ChargeMind Demo",
     description="充电场站诊断平台 — 黑客松演示版",
     version="0.1.0-demo",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

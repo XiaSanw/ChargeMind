@@ -1,4 +1,4 @@
-import { Zap, TrendingUp, Crosshair, RefreshCw } from 'lucide-react';
+import { Zap, TrendingUp, Crosshair, RefreshCw, Lightbulb } from 'lucide-react';
 import type { PathItem } from '@/types/dashboard';
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -14,10 +14,10 @@ const effortLabel: Record<string, string> = {
   high: '投入高',
 };
 
-const sourceColor: Record<string, string> = {
-  '[算法预测]': 'bg-blue-500/10 text-blue-400',
-  '[知识库类比]': 'bg-emerald-500/10 text-emerald-400',
-  '[行业规律推断]': 'bg-slate-500/10 text-slate-400',
+const effortColor: Record<string, string> = {
+  low: 'text-emerald-400',
+  medium: 'text-amber-400',
+  high: 'text-red-400',
 };
 
 interface Props {
@@ -28,26 +28,34 @@ export default function PathCard({ path }: Props) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 min-w-[200px] flex-1">
       <div className="flex items-center gap-2">
-        {categoryIcons[path.category] || <Zap size={18} className="text-primary" />}
+        {categoryIcons[path.category] || <Lightbulb size={18} className="text-primary" />}
         <span className="font-semibold text-sm text-foreground">{path.title}</span>
       </div>
-      <div className="flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-primary">+{path.annual_gain}万</span>
-        <span className="text-xs text-muted-foreground">/年</span>
+
+      {path.annual_gain !== null ? (
+        <div className="flex items-baseline gap-1">
+          <span className="text-2xl font-bold text-primary">+{path.annual_gain}万</span>
+          <span className="text-xs text-muted-foreground">/年</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1">
+          <Lightbulb size={16} className="text-muted-foreground" />
+          <span className="text-lg font-bold text-muted-foreground">建议方向</span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-muted-foreground">可信度</span>
+        <span className="font-medium text-foreground">{path.trust}</span>
+        <span className={`font-medium ${effortColor[path.effort]}`}>{effortLabel[path.effort]}</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
-            sourceColor[path.source] || 'bg-slate-500/10 text-slate-400'
-          }`}
-        >
-          {path.source.replace(/[\[\]]/g, '')}
-        </span>
-      </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>概率 {Math.round(path.probability * 100)}%</span>
-        <span>{effortLabel[path.effort]}</span>
-      </div>
+
+      {path.calculation && (
+        <div className="text-xs text-muted-foreground bg-secondary/50 rounded-md px-2 py-1">
+          公式: {path.calculation}
+        </div>
+      )}
+
       <p
         className="text-xs text-muted-foreground overflow-hidden"
         style={{

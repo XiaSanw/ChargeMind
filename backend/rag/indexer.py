@@ -12,9 +12,21 @@ from chromadb.config import Settings
 from config import KIMI_API_KEY, KIMI_BASE_URL
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# 优先使用带网格画像的数据，若不存在则回退到旧版
+# 优先使用带网格画像的数据，若不存在或是 LFS 指针则回退到旧版
 GRID_PATH = PROJECT_ROOT.parent / "data" / "cleaned" / "stations_with_grid.jsonl"
-DATA_PATH = GRID_PATH if GRID_PATH.exists() else PROJECT_ROOT.parent / "data" / "cleaned" / "stations.jsonl"
+
+def _is_lfs_pointer(path: Path) -> bool:
+    """检测文件是否为 Git LFS 指针文件"""
+    if not path.exists():
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            first = f.read(64)
+        return first.startswith("version https://git-lfs.github.com/spec")
+    except Exception:
+        return False
+
+DATA_PATH = GRID_PATH if (GRID_PATH.exists() and not _is_lfs_pointer(GRID_PATH)) else PROJECT_ROOT.parent / "data" / "cleaned" / "stations.jsonl"
 CHROMA_PATH = PROJECT_ROOT / "chroma_db"
 
 # Kimi Embedding 客户端
@@ -25,36 +37,84 @@ BATCH_SIZE = 100  # 实测最优 batch size（5秒/100条）
 
 
 def build_station_doc(station: dict) -> str:
-    """把场站结构化数据转成精简自然语言文档（控制token长度）"""
+    """
+    构建 Embedding 检索文档。
+    策略：以需求侧真实生态（grid 数据）为核心，供给侧配置为辅助。
+    利用率/日均充电量等估算指标不再参与检索——数据质量差，会污染相似度计算。
+    """
     region = station.get("region", "未知")
     biz = ",".join(station.get("business_type", []) or [""])
     power = station.get("total_installed_power", 0)
-    energy = station.get("avg_daily_energy_kwh", 0)
-    util = station.get("avg_utilization", 0)
-    peak = station.get("peak_hour", "")
-    cars = ",".join(station.get("service_car_types_desc", []) or [])
 
-    # 精简文档：保留最核心的检索维度
-    parts = [f"{region}{biz}充电站"]
+    # 桩数统计
+    pile_count = (
+        station.get("le_30kw_count", 0)
+        + station.get("gt_30_le_120kw_count", 0)
+        + station.get("gt_120_le_360kw_count", 0)
+        + station.get("gt_360kw_count", 0)
+    )
+
+    parts = []
+
+    # ── 第一层：区域定位（用户画像中最准的字段）──
+    parts.append(f"{region}{biz}充电需求区域")
+
+    # ── 第二层：需求侧真实生态（grid 数据，观测值，最可靠）──
+    gp = station.get("grid_vehicle_profile")
+    if gp:
+        # 车流量
+        car_trips = gp.get("avg_daily_car_trips")
+        if car_trips:
+            parts.append(f"周边日均{car_trips:.0f}车次")
+
+        # 车型 Top-3
+        vtm = gp.get("vehicle_type_mix", {})
+        if vtm:
+            top3 = sorted(vtm.items(), key=lambda x: -x[1])[:3]
+            types_str = "、".join([f"{t}{r*100:.0f}%" for t, r in top3])
+            parts.append(f"车型以{types_str}为主")
+
+        # 功率需求 Top-2
+        plm = gp.get("power_level_mix", {})
+        if plm:
+            top2 = sorted(plm.items(), key=lambda x: -x[1])[:2]
+            power_str = "、".join([f"{t}{r*100:.0f}%" for t, r in top2])
+            parts.append(f"功率需求以{power_str}为主")
+
+        # SOC
+        soc = gp.get("avg_soc")
+        if soc is not None:
+            parts.append(f"平均SOC{soc:.0f}%")
+
+        # 迁移态势
+        mig = gp.get("migration", {})
+        net = mig.get("net_migration", 0)
+        if net > 100:
+            parts.append(f"净流入{net:.0f}车次/日")
+        elif net < -100:
+            parts.append(f"净流出{abs(net):.0f}车次/日")
+    else:
+        # 无 grid 数据：回退到最小可用信息
+        cars = ",".join(station.get("service_car_types_desc", []) or [])
+        if cars:
+            parts.append(f"服务{cars}")
+
+    # ── 第三层：供给侧配置（辅助参考，放后面降低权重）──
+    if pile_count:
+        parts.append(f"场站配置{pile_count}个桩")
     if power:
-        parts.append(f"装机{power}kW")
-    if energy:
-        parts.append(f"日均{energy}度")
-    if util is not None:
-        parts.append(f"利用率{util}")
-    if peak:
-        parts.append(f"高峰{peak}")
-    if cars:
-        parts.append(f"服务{cars}")
+        # 功率数值异常大时简化显示（避免 161035kW 这种异常值主导）
+        if power > 100000:
+            parts.append(f"装机功率超大型场站")
+        else:
+            parts.append(f"装机{power:.0f}kW")
 
-    doc = "，".join(parts)
+    # ── 明确不使用的低质量字段 ──
+    # avg_utilization  — 19.6% 场站 <1%，数据质量极差
+    # avg_daily_energy_kwh — 网格级平均，非场站实际
+    # peak_hour / valley_hour — 样本稀疏，可信度低
 
-    # 拼接网格车辆生态文本（若存在）
-    grid_text = station.get("grid_context_text")
-    if grid_text:
-        doc += "。周边车辆生态：" + grid_text
-
-    return doc
+    return "，".join(parts)
 
 
 def get_embeddings(texts: list, retries: int = 3) -> list:
@@ -77,25 +137,26 @@ def get_embeddings(texts: list, retries: int = 3) -> list:
 
 
 def index_stations(force_rebuild: bool = False):
-    """索引所有场站数据到 ChromaDB"""
+    """索引所有场站数据到 ChromaDB。支持断点续传。"""
     client = chromadb.PersistentClient(
         path=str(CHROMA_PATH),
         settings=Settings(anonymized_telemetry=False),
     )
 
     existing = [c.name for c in client.list_collections()]
-    if "stations" in existing and not force_rebuild:
-        print(f"[RAG] 集合已存在，跳过索引 ({CHROMA_PATH})")
-        return client.get_collection("stations")
 
-    if "stations" in existing:
+    if "stations" in existing and force_rebuild:
         client.delete_collection("stations")
+        print("[RAG] force_rebuild=True，已删除旧集合")
 
-    # 创建集合（不使用默认 embedding function）
-    collection = client.create_collection(
-        name="stations",
-        metadata={"hnsw:space": "cosine"},
-    )
+    # 获取或创建集合
+    if "stations" in existing and not force_rebuild:
+        collection = client.get_collection("stations")
+    else:
+        collection = client.create_collection(
+            name="stations",
+            metadata={"hnsw:space": "cosine"},
+        )
 
     # 读取数据
     stations = []

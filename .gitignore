@@ -25,3 +25,7 @@ build/
 # Claude Code
 .claude/
 
+
+# ChromaDB 向量索引（本次迭代临时提交，之后恢复自动重建）
+# backend/chroma_db/
+# chroma_db/

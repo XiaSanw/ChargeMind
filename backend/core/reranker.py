@@ -2,17 +2,17 @@
 Chat 模型重排序器
 
 用 DeepSeek v4-pro 的推理能力对向量检索结果做精排：
-1. 取向量检索 Top-8 作为候选集
+1. 取向量检索 Top-15 作为候选集
 2. 让 Chat 模型从运营视角评估每个候选场站的对比价值
-3. 精选 Top-5，每条附带"为什么相似"的解释
+3. 精选 Top-10，每条附带"为什么相似"的解释
 4. 若 LLM 不可用，自动降级为向量排序结果
 """
 import json
 import os
 
-_RERANK_PROMPT = """你是一位充电场站运营对标专家。用户正在诊断一个充电场站，我们已经用向量检索找出了 8 个候选对标场站。
+_RERANK_PROMPT = """你是一位充电场站运营对标专家。用户正在诊断一个充电场站，我们已经用向量检索找出了 15 个候选对标场站。
 
-你需要从**运营对比价值**的角度，选出最值得对标的 5 个场站，并解释每个场站为什么有参考意义。
+你需要从**运营对比价值**的角度，选出最值得对标的 10 个场站，并解释每个场站为什么有参考意义。
 
 ## 评估维度（按重要性排序）
 1. **运营可比性**：硬件配置（功率/桩数）和业态是否相似？
@@ -23,11 +23,11 @@ _RERANK_PROMPT = """你是一位充电场站运营对标专家。用户正在诊
 ## 用户场站画像
 {user_profile_text}
 
-## 候选场站（8 个）
+## 候选场站（15 个）
 {candidates_text}
 
 ## 输出要求
-只输出一个 JSON 数组（不要代码块标记），包含 5 个场站，按对比价值从高到低排序：
+只输出一个 JSON 数组（不要代码块标记），包含 10 个场站，按对比价值从高到低排序：
 
 [
   {{
@@ -39,12 +39,12 @@ _RERANK_PROMPT = """你是一位充电场站运营对标专家。用户正在诊
   ...
 ]
 
-选满 5 个。如果候选不足 8 个，有几个选几个。"""
+选满 10 个。如果候选不足 15 个，有几个选几个。"""
 
 
 def chat_rerank(profile: dict, candidates: list, chat_client, model: str) -> list:
     """
-    用 Chat 模型对候选场站重排序，精选 Top-5 并附带解释。
+    用 Chat 模型对候选场站重排序，精选 Top-10 并附带解释。
 
     Args:
         profile: 用户场站画像 dict
@@ -53,7 +53,7 @@ def chat_rerank(profile: dict, candidates: list, chat_client, model: str) -> lis
         model: Chat 模型名（如 deepseek-v4-pro）
 
     Returns:
-        重排后的 Top-5 场站列表，每条新增 similarity_reason 和 key_comparison 字段，
+        重排后的 Top-10 场站列表，每条新增 similarity_reason 和 key_comparison 字段，
         且 similarity_score 调整为 Chat 赋予的新排名分（rank=1 → 1.0, rank=2 → 0.9, ...）
     """
     if not candidates or not chat_client:

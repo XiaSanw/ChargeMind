@@ -4,88 +4,214 @@ export const mockDiagnosis: DiagnosisResult = {
   dashboard: {
     headline: '你的场站年收益预估 -8.3 万元，对标场站最高 45.2 万，差距 53.5 万。综合运营评分 62 分（满分 100）。',
     overall_score: 62,
+    title: '大炮打蚊子',
+    title_reason: '地段极佳，但硬件与需求严重错配——建了大量超快充桩，周边车根本用不上',
     radar: {
-      位置价值: { score: 70, comment: '周边 POI 密度高，但充电供给过剩' },
-      硬件配置: { score: 55, comment: '快充占比过高，慢充补充不足' },
-      运营效率: { score: 38, comment: '利用率 5.2%，低于区域均值 7.4%' },
-      收益能力: { score: 32, comment: '年利润为负，主要受租金拖累' },
-      竞争格局: { score: 60, comment: '2km 内 3 家竞品，价格无优势' },
-      增长潜力: { score: 75, comment: '夜间低谷利用率有 3 倍提升空间' },
+      地段禀赋: { score: 85, comment: '车流密集，一个字：旺', trust: '⭐⭐⭐', sector_avg: 60 },
+      硬件适配: { score: 12, comment: '大炮打蚊子，快充供过于求', trust: '⭐⭐⭐', sector_avg: 55 },
+      定价精准: { score: 60, comment: '定价与竞品基本对齐', trust: '⭐⭐⭐', sector_avg: 50 },
+      运营产出: { score: 55, comment: '运营效率正常', trust: '⭐', sector_avg: 45 },
+      需求饱和度: { score: 40, comment: '需求与供给基本平衡', trust: '⭐⭐⭐', sector_avg: 50 },
     },
-    scoring_logic: '综合算法预测(30%) + RAG知识库对标(50%) + 行业基准(20%)加权计算',
+    scoring_logic: '五维基于硬数据计算：地段(grid车流/SOC/净流入)、硬件(TVD错配分数)、定价(价差百分比)、运营(装机×利用率假设)、饱和度(车流/装机比)',
+    sector_avg: {
+      地段禀赋: 60,
+      硬件适配: 55,
+      定价精准: 50,
+      运营产出: 45,
+      需求饱和度: 50,
+    },
+    scoring_reasoning: {
+      地段禀赋: '周边日均车流量 3200 车次，净流入 150 车次/日，综合评分 85 分。车流密集，地段价值高。',
+      硬件适配: '功率错配 TVD = 0.87（严重错配），供给功率分布与周边需求偏差大，评分 12 分。',
+      定价精准: '服务费与竞品差距 +26%，定价与竞品基本对齐。评分 60 分。',
+      运营产出: '装机功率 1000kW，20 个桩，基于 5% 利用率假设粗略估算。评分 55 分（⭐ 估算，数据质量差）。',
+      需求饱和度: '每 kW 装机对应日均车流量 3.2，需求与供给基本平衡。评分 40 分。',
+    },
+    warnings: [],
   },
   kpi_cards: [
-    { label: '预测利用率', value: '5.2%', trend: 'down', benchmark: '区域均值 7.4%', detail: '低于 60% 同类场站' },
-    { label: '年收益预估', value: '-8.3万', trend: 'down', benchmark: '对标最高 45.2万', detail: '租金占比过高' },
-    { label: '日均充电量', value: '240度', trend: 'flat', benchmark: '对标均值 580度', detail: '午间集中，低谷闲置' },
-    { label: '高峰时段', value: '13:00', trend: 'flat', benchmark: '行业高峰 12-14点', detail: '峰谷比 4:1，极不均衡' },
+    {
+      label: '均衡利用率区间',
+      value: '[0%-0.4%]',
+      trend: 'flat',
+      benchmark: '竞品均值参考',
+      detail: '弹性假设 1.5-2.5',
+      trust: '⭐⭐',
+    },
+    {
+      label: '年收益预估',
+      value: '-8.3万',
+      trend: 'down',
+      benchmark: '行业平均约 5-15 万/年',
+      detail: '基于粗略利用率假设',
+      trust: '⭐',
+    },
+    {
+      label: '竞争基准价差',
+      value: '+26%',
+      trend: 'down',
+      benchmark: '基准价 ¥1.50/度',
+      detail: '同 grid 竞品服务费加权均价',
+      trust: '⭐⭐⭐',
+    },
+    {
+      label: '高峰时段',
+      value: '13:00',
+      trend: 'flat',
+      benchmark: '行业高峰 12-14点',
+      detail: 'grid 观测峰值',
+      trust: '⭐⭐⭐',
+    },
   ],
-  benchmark: {
-    labels: ['你的场站', '小鹏S4超快充', '南山科技园站', '来福士广场站', '福田枢纽站', '区域均值'],
-    metrics: [
-      { key: 'utilization', name: '利用率', unit: '%', values: [5.2, 25.9, 11.2, 1.2, 18.5, 7.4] },
-      { key: 'annual_profit', name: '年收益', unit: '万元', values: [-8.3, 45.2, 18.6, -15.1, 32.0, 5.2] },
-      { key: 'daily_energy', name: '日均充电量', unit: '度', values: [240, 1240, 580, 89, 920, 420] },
-    ],
-    selected_metric: 'utilization',
+  power_mismatch: {
+    title: '功率错配分析',
+    tvd_score: 0.871,
+    tvd_level: '严重错配',
+    mismatch_direction: '供给过剩',
+    dominant_mismatch: {
+      label: '360kW 超充过剩',
+      power_range: '≥360kW',
+      gap_pct: 85,
+      direction: '过剩',
+    },
+    recommendation: '主流电池 50-60kWh（占 65%），120kW 桩 15 分钟内可从 20% 充至 80%',
+    confidence: '⭐⭐⭐',
   },
-  trend_projection: {
-    months: [0, 3, 6, 9, 12],
-    scenarios: [
-      { name: '保守', values: [-8.3, -5.1, -2.0, 0.5, 1.5], description: '仅实施峰谷电价优化' },
-      { name: '基准', values: [-8.3, -2.5, 3.0, 6.0, 8.5], description: '峰谷优化 + 基础引流措施' },
-      { name: '乐观', values: [-8.3, 1.0, 8.0, 14.0, 18.0], description: '全面优化 + 竞品博弈优势' },
-    ],
+  brand_analysis: {
+    brand_matrix: {
+      title: '私家车市场竞争格局',
+      brands: [
+        { brand: '特斯拉', share_pct: 22.5, cars: 1200 },
+        { brand: '比亚迪', share_pct: 18.3, cars: 980 },
+        { brand: '理想', share_pct: 12.1, cars: 650 },
+      ],
+      concentration: { cr3: 0.529, cr5: 0.78, structure: '中度集中' },
+    },
+    battery_capacity: {
+      title: '电池容量分布与功率建议',
+      dominant_range: '50-60',
+      dominant_pct: 65.2,
+      power_suggestion: '主流电池 50-60kWh（占 65%），120kW 桩 15 分钟内可从 20% 充至 80%',
+    },
+    seasonal_fluctuation: {
+      title: '季节波动分析',
+      peak_season: '冬季典型日',
+      trough_season: '春节',
+      max_change_pct: 66.7,
+    },
+  },
+  competitive_position: {
+    competitive_position: {
+      capacity_vs_actual: {
+        capacity_share_pct: 15.2,
+        actual_share_pct: 8.5,
+        share_gap_pct: -6.7,
+        interpretation: '份额流失',
+      },
+      competitive_benchmark_price: {
+        benchmark_price: 1.5,
+        my_price: 1.9,
+        price_gap_yuan: 0.4,
+        price_gap_pct: 26.6,
+      },
+      equilibrium_utilization: {
+        low: 0,
+        high: 0.0043,
+        base_util: 0.0015,
+        elasticity_range: [1.5, 2.5],
+      },
+      summary: '「深房光明里」在网格 L2GM05-GXD003 的 2 个竞品中定价偏高（+26.6%），服务费 ¥1.9/度 vs 基准 ¥1.5/度；容量份额 15.2% 但车流仅占 8.5%，份额在流失。',
+    },
+  },
+  price_benchmark_result: {
+    station_id: '488',
+    station_name: '深房光明里',
+    grid_code: 'L2GM05-GXD003',
+    competitor_count: 2,
+    price_benchmark: {
+      title: '竞品价格对标',
+      my_prices: { min: 1.9, avg: 1.9, max: 1.9 },
+      benchmark_prices: { min: 1.1066, avg: 1.5004, max: 1.781 },
+      gaps: { min_gap_pct: 71.7, avg_gap_pct: 26.6, max_gap_pct: 6.7 },
+      spread_ratio: 1.0,
+      benchmark_spread_ratio: 1.61,
+      confidence: '⭐⭐⭐',
+      note: '基于同 grid 2 个竞品中 2 个有价格数据的场站，按桩数加权计算 min/avg/max 基准价。',
+    },
+  },
+  benchmark_stations: [
+    {
+      metadata: {
+        station_name: '小鹏S4超快充',
+        region: '南山区',
+        business_type: '商业区',
+        total_installed_power: 4800,
+      },
+      trust: '⭐⭐⭐',
+      similarity_score: 0.92,
+    },
+    {
+      metadata: {
+        station_name: '南山科技园站',
+        region: '南山区',
+        business_type: '办公区',
+        total_installed_power: 1200,
+      },
+      trust: '⭐⭐',
+      similarity_score: 0.85,
+    },
+  ],
+  seasonal: {
+    title: '季节波动分析',
+    seasons: { 夏季典型日: 15000, 冬季典型日: 20000, 国庆: 12000, 春节: 8000 },
+    peak_season: '冬季典型日',
+    trough_season: '春节',
+    max_change_pct: 66.7,
+    season_changes: ['冬季典型日较夏季典型日高33.3%', '国庆较夏季典型日低20.0%', '春节较夏季典型日低46.7%'],
+    trend_hint_for_llm: '冬季典型日比春节高66.7%。冬季典型日较夏季典型日高33.3%；国庆较夏季典型日低20.0%；春节较夏季典型日低46.7%',
+    confidence: '⭐⭐⭐',
   },
   paths: [
     {
       title: '峰谷电价优化',
       category: '成本优化',
-      annual_gain: 5.2,
-      probability: 0.7,
+      annual_gain: 3.2,
       effort: 'low',
-      source: '[算法预测]',
-      detail: '将 40% 充电量从高峰(1.2元)移至低谷(0.3元)，预计年降本 5.2 万',
+      trust: '⭐⭐',
+      calculation: '基于5%利用率假设，日均1440度×40%高峰×¥0.5价差×365天',
+      detail: '将高峰充电量移至低谷时段，直接利用峰谷电价差降本',
     },
     {
-      title: '午间引流套餐',
-      category: '效率提升',
-      annual_gain: 8.1,
-      probability: 0.5,
-      effort: 'medium',
-      source: '[知识库类比]',
-      detail: '参考小鹏S4超快充模式：推出午间 11-14 点优惠套餐，预计提升利用率 8%',
-    },
-    {
-      title: '周边价格博弈',
-      category: '博弈调价',
-      annual_gain: 3.4,
-      probability: 0.4,
-      effort: 'low',
-      source: '[行业规律推断]',
-      detail: '2km 内竞品均高于你 0.1 元/度，适度提价 0.05 元不会流失客户',
-    },
-    {
-      title: '慢充桩改造',
+      title: '功率结构调整',
       category: '资产盘活',
-      annual_gain: 2.0,
-      probability: 0.3,
+      annual_gain: null,
       effort: 'high',
-      source: '[知识库类比]',
-      detail: '将 3 个闲置快充位改为 6 个慢充位，吸引夜间长停车辆，提升低谷利用率',
+      trust: '⭐⭐',
+      calculation: null,
+      detail: '360kW超充（≥360kW）供给过剩 85%，建议改造为更贴近需求的功率档',
+    },
+    {
+      title: '定价策略调整',
+      category: '博弈调价',
+      annual_gain: null,
+      effort: 'low',
+      trust: '⭐⭐⭐',
+      calculation: null,
+      detail: '当前服务费高于同 grid 竞品 26%，存在下调空间（无精确收益模型）',
     },
   ],
-  detail_text: `## 周边竞争格局分析
-
-该场站位于南山区科技园片区，周边 2km 范围内共有 3 家竞品充电站，总装机功率约 3,600kW。竞品平均电价为 1.15 元/度（含服务费），你的场站定价 1.05 元/度，具有一定价格优势但差距不大。
-
-## 运营效率瓶颈
-
-当前利用率 5.2%，主要受两个因素制约：
-1. **峰谷结构失衡**：高峰 13:00 利用率可达 18%，但低谷时段仅 1.2%，全天利用率被严重拉低
-2. **快充配比过高**：20 个桩全为快充，缺乏慢充补充，无法覆盖夜间长停需求
-
-## 引流潜力分析
-
-周边 500m 内有 4 栋甲级写字楼（约 8,000 名白领），目前午间充电渗透率不足 5%。参考小鹏 S4 超快充的午间套餐模式，若推出 11:00-14:00 限时 8 折优惠，预计可将午间利用率提升至 25%。`,
+  llm_enhancement: {
+    headline_refined: '地段极佳但硬件错配，快充桩闲置严重',
+    anomalies: [
+      { type: '功率异常', description: '360kW超充占比过高', severity: '高' },
+      { type: '价格异常', description: '低谷电价仍高于竞品', severity: '中' },
+    ],
+    trend_outlook: '冬季车流上行，春节后回落，整体平稳偏乐观',
+    path_suggestions: [
+      { title: '功率结构改造', rationale: '将闲置超充改为快充，匹配主流电池需求' },
+      { title: '峰谷电价优化', rationale: '利用低谷价差吸引夜间长停车辆' },
+    ],
+  },
+  detail_text: '## 周边竞争格局分析\n\n该场站位于光明区，周边 2km 范围内共有 2 家竞品充电站。竞品平均电价为 1.50 元/度（含服务费），你的场站定价 1.90 元/度，高于竞品 26.6%。\n\n## 运营效率瓶颈\n\n当前硬件配置与周边车型需求严重错配：360kW 超充桩供给过剩 85%，而周边 65% 的车辆电池容量为 50-60kWh，120kW 桩已足够满足需求。',
 };
