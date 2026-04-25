@@ -1,8 +1,30 @@
 # 运行时配置（含 API Key）
 config.json
+.env
 
-# 归档目录
-archive/
+# 数据库
+*.sqlite3
+*.sqlite
+*.db
+backend/chroma_db/
+
+# 数据目录（原始数据与清洗结果）
+data/raw/
+data/cleaned/
+
+# 视频/媒体
+video/
+
+# 归档资源
+archive/assets/
+
+# 构建/缓存输出
+frontend_merge/.vite/
+frontend_merge/out/
+frontend_merge/build/
+frontend_merge/dist/
+frontend_clq/dist/
+frontend/dist/
 
 # Python
 __pycache__/
@@ -25,7 +47,5 @@ build/
 # Claude Code
 .claude/
 
-
-# ChromaDB 向量索引（本次迭代临时提交，之后恢复自动重建）
-# backend/chroma_db/
-# chroma_db/
+# Node
+node_modules/

@@ -19,7 +19,8 @@ const QUESTION_EXAMPLES: Record<string, string> = {
 const createMultiNumberDefault = (q: NextQuestion): Record<string, number | ''> => {
   const defaults: Record<string, number | ''> = {};
   q.subfields?.forEach((sf) => {
-    defaults[sf.key] = '';
+    // brand_piles 默认填 0，用户只需改自己有的品牌
+    defaults[sf.key] = q.key === 'brand_piles' ? 0 : '';
   });
   return defaults;
 };
@@ -101,6 +102,11 @@ export default function EnrichPage() {
       const result: Record<string, number> = {};
       let hasEmpty = false;
       for (const [k, v] of Object.entries(obj)) {
+        // brand_piles：没填默认转 0
+        if (question.key === 'brand_piles' && (v === '' || v === null || v === undefined)) {
+          result[k] = 0;
+          continue;
+        }
         const num = Number(v);
         if (v === '' || isNaN(num)) {
           hasEmpty = true;
@@ -134,6 +140,8 @@ export default function EnrichPage() {
     }
     if (question?.type === 'multi-number') {
       const obj = inputValue as Record<string, number | ''>;
+      // brand_piles 默认都是 0，允许空值（提交时会转为 0）
+      if (question.key === 'brand_piles') return false;
       return Object.values(obj).some((v) => v === '' || v === null || v === undefined);
     }
     return inputValue === '' || inputValue === null;

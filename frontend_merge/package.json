@@ -7,9 +7,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "video:preview": "remotion studio src/remotion/index.tsx",
+    "video:render": "remotion render src/remotion/index.tsx ChargeMind out/chargemind.mp4 --browser-executable=\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\""
   },
   "dependencies": {
+    "@remotion/cli": "^4.0.451",
+    "@remotion/player": "^4.0.451",
     "@tailwindcss/vite": "^4.2.4",
     "axios": "^1.15.2",
     "framer-motion": "^12.38.0",
@@ -18,7 +22,8 @@
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "remotion": "^4.0.451"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
