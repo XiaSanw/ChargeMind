@@ -2,6 +2,12 @@ import type { DiagnosisResult } from './dashboard';
 
 export type BusinessType = '住宅区' | '办公区' | '商业区' | '工业区' | '交通枢纽' | '旅游景区';
 
+export interface PileBreakdown {
+  slow: number;   // ≤30kW 慢充桩
+  fast: number;   // 30-160kW 快充桩
+  super: number;  // >160kW 超充桩
+}
+
 export interface StationProfile {
   station_name?: string;
   region?: string;
@@ -13,6 +19,9 @@ export interface StationProfile {
   avg_price?: number;
   peak_hour?: string;
   valley_hour?: string;
+  pile_breakdown?: PileBreakdown;
+  has_brand_pile?: string;
+  brand_piles?: Record<string, number>;
 }
 
 export interface ExtractRequest {
@@ -25,13 +34,20 @@ export interface ExtractResponse {
   error?: string;
 }
 
-export type QuestionType = 'text' | 'number' | 'select' | 'multiselect';
+export type QuestionType = 'text' | 'number' | 'select' | 'multiselect' | 'multi-number';
+
+export interface NumberSubfield {
+  key: string;
+  label: string;
+  placeholder?: string;
+}
 
 export interface NextQuestion {
   key: string;
   question: string;
   type: QuestionType;
   options?: string[];
+  subfields?: NumberSubfield[];
 }
 
 export interface EnrichResponse {

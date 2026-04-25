@@ -131,6 +131,7 @@ export interface DiagnosisResult {
   kpi_cards: KPICardData[];
   power_mismatch: Record<string, unknown>;
   brand_analysis: Record<string, unknown>;
+  brand_pile_analysis?: Record<string, unknown>;
   competitive_position: Record<string, unknown>;
   price_benchmark_result: {
     station_id: string;

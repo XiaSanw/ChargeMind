@@ -48,6 +48,9 @@ class StationProfile(BaseModel):
     avg_price: Optional[float] = None
     peak_hour: Optional[str] = None
     valley_hour: Optional[str] = None
+    pile_breakdown: Optional[dict] = None
+    has_brand_pile: Optional[str] = None
+    brand_piles: Optional[dict] = None
 
 
 class EnrichRequest(BaseModel):
@@ -64,6 +67,20 @@ ENRICH_FIELDS = [
     {"key": "business_type", "question": "周边主要业态是什么？", "type": "multiselect", "options": ["交通枢纽","商业区","办公区","住宅区","工业区","旅游景区"]},
     {"key": "total_installed_power", "question": "装机总功率大约多少 kW？", "type": "number"},
     {"key": "pile_count", "question": "有多少个充电桩？", "type": "number"},
+    {"key": "pile_breakdown", "question": "当前不同功率等级的充电桩分别有多少台？", "type": "multi-number", "subfields": [
+        {"key": "slow", "label": "30kW以下慢充桩", "placeholder": "例如：5"},
+        {"key": "fast", "label": "30-160kW快充桩", "placeholder": "例如：10"},
+        {"key": "super", "label": "160kW以上超充桩", "placeholder": "例如：2"}
+    ]},
+    {"key": "has_brand_pile", "question": "是否有品牌专用桩？", "type": "select", "options": ["有", "无"]},
+    {"key": "brand_piles", "question": "各品牌专用桩分别有多少台？（没有填0）", "type": "multi-number", "subfields": [
+        {"key": "特斯拉", "label": "特斯拉", "placeholder": "0"},
+        {"key": "蔚来", "label": "蔚来", "placeholder": "0"},
+        {"key": "小鹏", "label": "小鹏", "placeholder": "0"},
+        {"key": "比亚迪", "label": "比亚迪", "placeholder": "0"},
+        {"key": "理想", "label": "理想", "placeholder": "0"},
+        {"key": "其他", "label": "其他品牌", "placeholder": "0"}
+    ]},
     {"key": "monthly_rent", "question": "月租金大约多少元？", "type": "number"},
     {"key": "staff_count", "question": "运维人员有几人？", "type": "number"},
     {"key": "avg_price", "question": "平均电价+服务费大约多少元/度？", "type": "number"},
@@ -120,6 +137,35 @@ def extract_profile(req: ExtractRequest):
         return {"profile": profile, "llm_used": False, "error": str(e)}
 
 
+def _is_field_missing(profile: dict, field: dict) -> bool:
+    """判断某个 enrich 字段是否缺失。"""
+    key = field["key"]
+
+    # 条件字段：brand_piles 仅在 has_brand_pile == "有" 时才需要
+    if key == "brand_piles":
+        has_brand = profile.get("has_brand_pile")
+        if has_brand != "有":
+            return False
+
+    val = profile.get(key)
+
+    # multi-number 类型：要求是 dict 且所有子字段都有非空数值
+    if field.get("type") == "multi-number":
+        if not isinstance(val, dict):
+            return True
+        subfields = field.get("subfields", [])
+        for sf in subfields:
+            sf_val = val.get(sf["key"])
+            if sf_val is None or sf_val == "":
+                return True
+        return False
+
+    # 其他类型
+    if val is None or val == "" or val == []:
+        return True
+    return False
+
+
 @router.post("/enrich")
 def enrich_profile(req: EnrichRequest):
     """
@@ -128,9 +174,7 @@ def enrich_profile(req: EnrichRequest):
     profile = req.profile
     missing = []
     for field in ENRICH_FIELDS:
-        key = field["key"]
-        val = profile.get(key)
-        if val is None or val == "" or val == []:
+        if _is_field_missing(profile, field):
             missing.append(field)
 
     if not missing:

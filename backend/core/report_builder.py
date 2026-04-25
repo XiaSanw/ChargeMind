@@ -20,6 +20,7 @@ from core.brand_analyzer import (
     extract_brand_matrix,
     extract_seasonal_fluctuation,
     extract_vehicle_profile,
+    _analyze_brand_pile_breakdown,
 )
 from core.power_mismatch import analyze_power_mismatch
 from core.price_benchmark import analyze_price_benchmark
@@ -357,7 +358,7 @@ def _build_scoring_reasoning(station: dict, scores: dict, pm: dict, comp_result:
     cars = gp.get("avg_daily_car_trips", 0) if gp else 0
     net = gp.get("migration", {}).get("net_migration", 0) if gp else 0
     reasoning["地段禀赋"] = (
-        f"周边日均车流量 {cars:.0f} 车次，净流入 {net:.0f} 车次/日，"
+        f"当前区域日均车流量 {cars:.0f} 车次，净流入 {net:.0f} 车次/日，"
         f"综合评分 {scores['地段禀赋']} 分。"
         f"{'车流密集，地段价值高。' if scores['地段禀赋'] > 60 else '车流量一般，地段潜力有限。'}"
     )
@@ -366,7 +367,7 @@ def _build_scoring_reasoning(station: dict, scores: dict, pm: dict, comp_result:
     tvd = pm.get("tvd_score", 0) if "error" not in pm else 0.5
     reasoning["硬件适配"] = (
         f"功率错配 TVD = {tvd:.2f}（{'严重错配' if tvd > 0.5 else '轻度错配' if tvd > 0.2 else '基本匹配'}），"
-        f"供给功率分布与周边需求偏差大，评分 {scores['硬件适配']} 分。"
+        f"当前区域供给功率分布与需求偏差大，评分 {scores['硬件适配']} 分。"
     )
 
     # 定价精准
@@ -384,14 +385,14 @@ def _build_scoring_reasoning(station: dict, scores: dict, pm: dict, comp_result:
              station.get("gt_120_le_360kw_count", 0) + station.get("gt_360kw_count", 0))
     reasoning["运营产出"] = (
         f"装机功率 {power}kW，{piles} 个桩，"
-        f"基于 5% 利用率假设粗略估算。"
+        f"基于当前区域 5% 利用率假设粗略估算。"
         f"评分 {scores['运营产出']} 分（⭐ 估算，数据质量差）。"
     )
 
     # 需求饱和度
     ratio = cars / power if power > 0 else 0
     reasoning["需求饱和度"] = (
-        f"每 kW 装机对应日均车流量 {ratio:.2f}，"
+        f"当前区域每 kW 装机对应日均车流量 {ratio:.2f}，"
         f"{'需求远超供给，饱和度高。' if ratio > 1.0 else '需求与供给基本平衡。'}"
         f"评分 {scores['需求饱和度']} 分。"
     )
@@ -504,7 +505,7 @@ def _build_kpi_cards(station: dict, comp_result: dict, pm: dict) -> List[dict]:
             "value": f"{gap_pct:+.0f}%",
             "trend": "up" if gap_pct > 0 else "down",
             "benchmark": f"基准价 ¥{bench.get('benchmark_price', 0):.2f}/度",
-            "detail": "同 grid 竞品服务费加权均价",
+            "detail": "同区域竞品服务费加权均价",
             "trust": "⭐⭐⭐",
         })
 
@@ -517,7 +518,7 @@ def _build_kpi_cards(station: dict, comp_result: dict, pm: dict) -> List[dict]:
         "value": "13:00" if peak > 0 else "待观测",
         "trend": "flat",
         "benchmark": "行业高峰 12-14 点",
-        "detail": "grid 观测峰值",
+        "detail": "区域观测峰值",
         "trust": "⭐⭐⭐" if peak > 0 else "⭐⭐",
     })
 
@@ -578,7 +579,7 @@ def _build_paths(station: dict, pm: dict, comp_result: dict) -> List[dict]:
                 "effort": "low",
                 "trust": "⭐⭐⭐",
                 "calculation": None,
-                "detail": f"当前服务费高于同 grid 竞品 {gap_pct:.0f}%，存在{direction}空间（无精确收益模型）",
+                "detail": f"当前服务费高于同区域竞品 {gap_pct:.0f}%，存在{direction}空间（无精确收益模型）",
             })
 
     # 按 effort 排序（low → medium → high）
@@ -592,7 +593,7 @@ def _build_paths(station: dict, pm: dict, comp_result: dict) -> List[dict]:
 #  5. 主构建函数
 # ═══════════════════════════════════════════════════════
 
-def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stations: list = None) -> dict:
+def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stations: list = None, profile: dict = None) -> dict:
     """
     构建完整的诊断报告。
 
@@ -600,13 +601,23 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
         station: 当前场站完整数据（JSONL 中的一行）
         all_stations: 所有场站列表（用于竞争定位分析）
         similar_stations: RAG 检索到的相似场站列表（可选）
+        profile: 用户输入的画像（含 pile_breakdown 等）
 
     输出：完整的诊断报告 JSON（对齐 输出界面.md 规范）
     """
     # 1. 各模块分析
-    pm = analyze_power_mismatch(station)
-    brand = extract_vehicle_profile(station)
     grid_stations = _get_grid_stations(station, all_stations)
+    pm = analyze_power_mismatch(station, profile, grid_stations)
+    brand = extract_vehicle_profile(station)
+
+    # 品牌专用桩对比分析（只要用户回答了是否有品牌专用桩，就进行分析）
+    brand_pile_analysis = None
+    if profile and profile.get("has_brand_pile") is not None:
+        brand_piles = profile.get("brand_piles") or {}
+        brand_matrix = brand.get("brand_matrix", {})
+        brand_pile_analysis = _analyze_brand_pile_breakdown(
+            brand_piles, brand_matrix
+        )
 
     # 竞争定位分析（如果 grid_stations 为空，用全部场站）
     try:
@@ -648,15 +659,15 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
         warnings.append({
             "severity": "high",
             "icon": "⚠️",
-            "message": "本场站无 grid 画像数据，地段/硬件/饱和度分析基于有限信息",
-            "detail": "grid_vehicle_profile 缺失，车型构成、功率需求、SOC、季节波动等模块无法计算。建议补充网格画像数据后重新诊断。",
+            "message": "本场站无区域画像数据，地段/硬件/饱和度分析基于有限信息",
+            "detail": "区域车辆画像数据缺失，车型构成、功率需求、SOC、季节波动等模块无法计算。建议补充区域画像数据后重新诊断。",
         })
 
     # 8.5 竞品价格对标（简化版 min/avg/max）
     price_benchmark_result = analyze_price_benchmark(station, all_stations)
 
     # 8.6 生成 detail_text（Markdown 摘要）
-    detail_text = _build_detail_text(station, comp_result, pm, brand)
+    detail_text = _build_detail_text(station, comp_result, pm, brand, brand_pile_analysis)
 
     # 9. 组装报告
     report = {
@@ -666,7 +677,7 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
             "title": title,
             "title_reason": title_reason,
             "radar": radar,
-            "scoring_logic": "五维基于硬数据计算：地段(grid车流/SOC/净流入)、硬件(TVD错配分数)、定价(价差百分比)、运营(装机×利用率假设)、饱和度(车流/装机比)",
+            "scoring_logic": "五维基于硬数据计算：地段(区域车流/SOC/净流入)、硬件(TVD错配分数)、定价(价差百分比)、运营(装机×利用率假设)、饱和度(车流/装机比)",
             "sector_avg": sector_avg,
             "scoring_reasoning": scoring_reasoning,
             "warnings": warnings,
@@ -674,6 +685,7 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
         "kpi_cards": kpi_cards,
         "power_mismatch": pm,
         "brand_analysis": brand,
+        "brand_pile_analysis": brand_pile_analysis,
         "competitive_position": comp_result,
         "price_benchmark_result": price_benchmark_result,
         "benchmark_stations": _annotate_benchmark_trust(similar_stations or []),
@@ -685,7 +697,7 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
     return report
 
 
-def _build_detail_text(station: dict, comp_result: dict, pm: dict, brand: dict) -> str:
+def _build_detail_text(station: dict, comp_result: dict, pm: dict, brand: dict, brand_pile_analysis: dict = None) -> str:
     """生成 Markdown 格式的详细分析摘要。"""
     parts = []
     sname = station.get("station_name", "本场站")
@@ -724,7 +736,7 @@ def _build_detail_text(station: dict, comp_result: dict, pm: dict, brand: dict) 
             if my_p is not None:
                 lines.append(f"- 本场站服务费: ¥{my_p}/度")
             if b_p is not None:
-                lines.append(f"- 同 grid 竞品基准: ¥{b_p}/度")
+                lines.append(f"- 同区域竞品基准: ¥{b_p}/度")
             if gap_y is not None and gap_pct is not None:
                 direction = "高于" if gap_y > 0 else "低于"
                 lines.append(f"- 价差: {direction}基准 {abs(gap_y):.2f}元/度（{gap_pct:+.1f}%）")
@@ -836,6 +848,27 @@ def _build_detail_text(station: dict, comp_result: dict, pm: dict, brand: dict) 
             lines.append(f"- 加权平均: {wavg:.1f}kWh")
         parts.append("\n".join(lines))
 
+    # ═══ 4. 品牌专用桩对比分析 ═══
+    if brand_pile_analysis:
+        lines = ["\n## 区域品牌画像与用户场站对比"]
+        if brand_pile_analysis.get("region_demand_text"):
+            lines.append(f"\n### 区域车辆品牌需求\n\n{brand_pile_analysis['region_demand_text']}")
+        if brand_pile_analysis.get("station_supply_text"):
+            lines.append(f"\n### 用户场站品牌专用桩供给结构\n\n{brand_pile_analysis['station_supply_text']}")
+        items = brand_pile_analysis.get("station_items", [])
+        if items:
+            lines.append("\n### 用户场站品牌专用桩诊断")
+            lines.append("| 品牌 | 桩数 | 区域车辆占比 | 判断 |")
+            lines.append("|------|------|-------------|------|")
+            for item in items:
+                lines.append(
+                    f"| {item['brand']} | {item['count']} 台 | {item['demand_pct']:.1f}% | {item['judgment']} |"
+                )
+            lines.append("\n**详细说明：**")
+            for item in items:
+                lines.append(f"- **{item['brand']}**：{item['reason']}")
+        parts.append("\n".join(lines))
+
     # 季节波动
     sf = brand.get("seasonal_fluctuation", {}) if isinstance(brand, dict) else {}
     if "error" not in sf:
@@ -860,10 +893,10 @@ def _annotate_benchmark_trust(stations: list) -> list:
         meta = s.get("metadata", {})
         if meta.get("has_grid_profile"):
             s["trust"] = "⭐⭐⭐"
-            s["trust_reason"] = "含 grid 画像数据（车流/车型/SOC/功率需求）"
+            s["trust_reason"] = "含区域画像数据（车流/车型/SOC/功率需求）"
         else:
             s["trust"] = "⭐⭐"
-            s["trust_reason"] = "仅含基础运营数据（桩数/价格），无 grid 画像"
+            s["trust_reason"] = "仅含基础运营数据（桩数/价格），无区域画像"
     return stations
 
 
@@ -877,4 +910,4 @@ def build_report_by_profile(profile: dict, similar_stations: list = None) -> dic
         return {"error": "无法找到匹配的场站数据"}
 
     all_stations = _load_all_stations()
-    return build_diagnosis_report(station, all_stations, similar_stations)
+    return build_diagnosis_report(station, all_stations, similar_stations, profile)

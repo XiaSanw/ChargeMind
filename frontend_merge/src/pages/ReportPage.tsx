@@ -113,14 +113,12 @@ export default function ReportPage() {
     dashboard,
     kpi_cards,
     benchmark_stations,
-    price_benchmark_result,
     seasonal,
     llm_enhancement,
     paths,
     detail_text,
   } = dashboardData;
 
-  const pb = price_benchmark_result?.price_benchmark;
 
   return (
     <div className="min-h-screen px-4 py-8 md:py-12">
@@ -200,65 +198,15 @@ export default function ReportPage() {
         {/* 功率错配 + 品牌分析 + 竞争定位 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <PowerMismatchCard data={dashboardData.power_mismatch} />
-          <BrandAnalysisCard data={dashboardData.brand_analysis} />
-          <CompetitivePositionCard data={dashboardData.competitive_position} />
+          <BrandAnalysisCard data={{
+            ...dashboardData.brand_analysis,
+            brand_pile_analysis: dashboardData.brand_pile_analysis,
+          }} />
+          <CompetitivePositionCard data={{
+            ...dashboardData.competitive_position,
+            price_benchmark: dashboardData.price_benchmark_result?.price_benchmark,
+          }} />
         </div>
-
-        {/* 竞品价格对标 */}
-        {pb && pb.my_prices?.avg !== null && (
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">💰 竞品价格对标</h3>
-              <span className="text-xs text-muted-foreground">{pb.confidence}</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* min */}
-              <div className="rounded-xl bg-secondary/30 p-4 text-center">
-                <div className="text-xs text-muted-foreground mb-1">低谷价格</div>
-                <div className="text-xl font-bold">¥{pb.my_prices.min}/度</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  竞品 ¥{pb.benchmark_prices.min}/度
-                  {pb.gaps.min_gap_pct !== null && (
-                    <span className={pb.gaps.min_gap_pct > 0 ? 'text-red-400' : 'text-emerald-400'}>
-                      {' '}{pb.gaps.min_gap_pct > 0 ? '+' : ''}{pb.gaps.min_gap_pct}%
-                    </span>
-                  )}
-                </div>
-              </div>
-              {/* avg */}
-              <div className="rounded-xl bg-secondary/30 p-4 text-center">
-                <div className="text-xs text-muted-foreground mb-1">全天均价</div>
-                <div className="text-xl font-bold">¥{pb.my_prices.avg}/度</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  竞品 ¥{pb.benchmark_prices.avg}/度
-                  {pb.gaps.avg_gap_pct !== null && (
-                    <span className={pb.gaps.avg_gap_pct > 0 ? 'text-red-400' : 'text-emerald-400'}>
-                      {' '}{pb.gaps.avg_gap_pct > 0 ? '+' : ''}{pb.gaps.avg_gap_pct}%
-                    </span>
-                  )}
-                </div>
-              </div>
-              {/* max */}
-              <div className="rounded-xl bg-secondary/30 p-4 text-center">
-                <div className="text-xs text-muted-foreground mb-1">高峰价格</div>
-                <div className="text-xl font-bold">¥{pb.my_prices.max}/度</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  竞品 ¥{pb.benchmark_prices.max}/度
-                  {pb.gaps.max_gap_pct !== null && (
-                    <span className={pb.gaps.max_gap_pct > 0 ? 'text-red-400' : 'text-emerald-400'}>
-                      {' '}{pb.gaps.max_gap_pct > 0 ? '+' : ''}{pb.gaps.max_gap_pct}%
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>本场站峰谷比: {pb.spread_ratio || 'N/A'}</span>
-              <span>竞品峰谷比: {pb.benchmark_spread_ratio || 'N/A'}</span>
-            </div>
-            {pb.note && <p className="text-xs text-muted-foreground">{pb.note}</p>}
-          </div>
-        )}
 
         {/* 季节趋势 */}
         {'error' in seasonal === false && seasonal.peak_season && (

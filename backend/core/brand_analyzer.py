@@ -532,6 +532,197 @@ def classify_charging_behavior(vehicle_tag_profile: dict) -> dict:
 
 
 # ═══════════════════════════════════════════════════════
+#  品牌专用桩对比分析（三段式）
+# ═══════════════════════════════════════════════════════
+
+# 品牌名标准化映射（统一中英文/大小写）
+_BRAND_NAME_NORMALIZE = {
+    "tesla": "特斯拉",
+    "特斯拉": "特斯拉",
+    "nio": "蔚来",
+    "蔚来": "蔚来",
+    "xpeng": "小鹏",
+    "小鹏": "小鹏",
+    "byd": "比亚迪",
+    "比亚迪": "比亚迪",
+    "li_auto": "理想",
+    "理想": "理想",
+    "其他": "其他",
+    "others": "其他",
+}
+
+
+def _normalize_brand_name(name: str) -> str:
+    """标准化品牌名称"""
+    return _BRAND_NAME_NORMALIZE.get(name.lower().strip(), name)
+
+
+def _build_region_brand_demand(brand_matrix: dict) -> dict:
+    """
+    从 brand_matrix 构建区域品牌需求画像。
+    返回：{"top_brands": [{"brand": "特斯拉", "share_pct": 32.5, "cars": 1234}, ...], "total_cars": int}
+    """
+    if "error" in brand_matrix:
+        return {"error": brand_matrix["error"]}
+
+    brands = brand_matrix.get("brands", [])
+    total_cars = brand_matrix.get("total_branded_cars", 0)
+
+    top_brands = []
+    for b in brands[:5]:
+        top_brands.append({
+            "brand": b["brand"],
+            "share_pct": b["share_pct"],
+            "cars": b["cars"],
+            "main_power_level": b.get("main_power_level", ""),
+        })
+
+    return {
+        "top_brands": top_brands,
+        "total_cars": total_cars,
+        "concentration": brand_matrix.get("concentration", {}),
+    }
+
+
+def _analyze_brand_pile_breakdown(
+    brand_piles: dict,
+    brand_matrix: dict,
+) -> dict:
+    """
+    基于用户输入的 brand_piles 与区域车辆品牌占比，做三段式供需对比分析。
+
+    三段式结构：
+    1. 区域需求画像：当前区域车辆品牌分布（排除 OtherBand）
+    2. 用户供给结构：用户场站品牌专用桩分布
+    3. 供需对比诊断：逐品牌判断匹配/缺失/过剩
+
+    需求占比计算：只统计有具体品牌的车辆（排除"非自有桩品牌"OtherBand）。
+    即 demand_pct = 某品牌车次 / 所有具体品牌车次总和 × 100%
+    """
+    # 标准化用户输入的品牌名
+    normalized_pb = {}
+    for k, v in (brand_piles or {}).items():
+        norm_name = _normalize_brand_name(k)
+        normalized_pb[norm_name] = (normalized_pb.get(norm_name, 0) or 0) + (v or 0)
+
+    # 排除数值为 0 的品牌，同时排除"其他"
+    user_brands = {k: v for k, v in normalized_pb.items() if v > 0 and k not in ("其他", "非自有桩品牌")}
+    total_brand_piles = sum(user_brands.values())
+
+    # ── 第 1 段：区域车辆品牌需求画像 ──
+    region_demand_text = ""
+    top_brands = []
+    brand_cars_map = {}     # 品牌 -> 车次
+    demand_pct_map = {}     # 品牌 -> 排除 OtherBand 后的需求占比
+
+    if "error" not in brand_matrix:
+        brands = brand_matrix.get("brands", [])
+        total_branded_cars = brand_matrix.get("total_branded_cars", 0)
+
+        # 计算排除 OtherBand 后的总车次
+        otherband_cars = 0
+        for b in brands:
+            brand_cars_map[b["brand"]] = b["cars"]
+            if b["brand"] == "非自有桩品牌":
+                otherband_cars = b["cars"]
+
+        total_cars_excl_otherband = total_branded_cars - otherband_cars
+
+        # 按排除 OtherBand 后的占比重新排序取 TOP
+        sorted_brands = sorted(
+            [b for b in brands if b["brand"] != "非自有桩品牌"],
+            key=lambda x: -x["cars"]
+        )
+        top_brands = sorted_brands[:5]
+
+        if top_brands:
+            dominant = top_brands[0]
+            # 需求占比基于排除 OtherBand 后的总量
+            dominant_demand_pct = (dominant["cars"] / total_cars_excl_otherband * 100) if total_cars_excl_otherband > 0 else 0.0
+            region_demand_text = (
+                f"通过数据分析，当前区域下周边车辆品牌呈"
+                f"「{dominant['brand']}为主」格局（占比 {dominant_demand_pct:.1f}%）。"
+            )
+
+            top3_lines = []
+            for b in top_brands[:3]:
+                pct = (b["cars"] / total_cars_excl_otherband * 100) if total_cars_excl_otherband > 0 else 0.0
+                top3_lines.append(f"{b['brand']} {pct:.1f}%（{b['cars']:,}车次）")
+            region_demand_text += f"品牌 TOP3：{' / '.join(top3_lines)}。"
+
+            for b in sorted_brands:
+                demand_pct_map[b["brand"]] = (
+                    (b["cars"] / total_cars_excl_otherband * 100)
+                    if total_cars_excl_otherband > 0 else 0.0
+                )
+
+    # ── 第 2 段：用户场站品牌专用桩供给结构 ──
+    station_supply_text = ""
+    if total_brand_piles > 0:
+        supply_lines = []
+        for brand_name, count in sorted(user_brands.items(), key=lambda x: -x[1]):
+            pct = count / total_brand_piles * 100
+            supply_lines.append(f"{brand_name} {pct:.0f}%（{count} 台）")
+        station_supply_text = (
+            f"您场站共配置 {total_brand_piles} 台品牌专用桩，"
+            f"分布为：{' / '.join(supply_lines)}。"
+        )
+    else:
+        station_supply_text = "您场站未配置品牌专用桩，当前均为通用桩。"
+
+    # ── 第 3 段：用户场站品牌专用桩诊断 ──
+    station_items = []
+
+    # 分析品牌 = 品牌矩阵中出现过的具体品牌 ∪ 用户输入的品牌
+    analyzed_brands = set(demand_pct_map.keys())
+    analyzed_brands.update(normalized_pb.keys())
+    analyzed_brands.discard("其他")
+    analyzed_brands.discard("非自有桩品牌")
+
+    for brand_name in sorted(analyzed_brands):
+        count = normalized_pb.get(brand_name, 0) or 0
+        demand_pct = demand_pct_map.get(brand_name, 0.0)
+
+        # 用户该品牌桩占专用桩总数的供给占比
+        supply_pct = (count / total_brand_piles * 100) if total_brand_piles > 0 else 0.0
+
+        # 供需差值（供给占比 − 需求占比）
+        gap = supply_pct - demand_pct
+
+        if count == 0:
+            if demand_pct < 5:
+                judgment = "— 无需配置"
+                reason = f"当前区域 {brand_name} 车辆占比仅 {demand_pct:.1f}%，占比偏低，无需专门配置"
+            else:
+                judgment = "❌ 缺失"
+                reason = f"当前区域 {brand_name} 车辆占比 {demand_pct:.1f}%，您场站未配置该品牌专用桩"
+        elif gap > 20:
+            judgment = "⚠️ 过剩风险"
+            reason = f"您场站该品牌专用桩占比 {supply_pct:.1f}%（{count} 台），高于区域车辆占比 {demand_pct:.1f}%"
+        elif gap < -20:
+            judgment = "❌ 供给不足"
+            reason = f"您场站该品牌专用桩占比 {supply_pct:.1f}%（{count} 台），低于区域车辆占比 {demand_pct:.1f}%，建议增补"
+        else:
+            judgment = "✓ 基本匹配"
+            reason = f"您场站该品牌专用桩 {count} 台，与区域车辆占比 {demand_pct:.1f}% 基本匹配"
+
+        station_items.append({
+            "brand": brand_name,
+            "count": count,
+            "supply_pct": round(supply_pct, 1),
+            "demand_pct": round(demand_pct, 1),
+            "judgment": judgment,
+            "reason": reason,
+        })
+
+    return {
+        "region_demand_text": region_demand_text,
+        "station_supply_text": station_supply_text,
+        "station_items": station_items,
+    }
+
+
+# ═══════════════════════════════════════════════════════
 #  统一入口：从场站数据提取全部品牌画像
 # ═══════════════════════════════════════════════════════
 

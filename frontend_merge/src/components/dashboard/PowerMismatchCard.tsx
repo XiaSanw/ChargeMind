@@ -1,4 +1,4 @@
-import { Zap, Battery } from 'lucide-react';
+import { Zap, Battery, MapPin } from 'lucide-react';
 
 interface SupplyDemandItem {
   power_range: string;
@@ -7,6 +7,21 @@ interface SupplyDemandItem {
   demand_pct: number;
   gap_pct: number;
   direction: string;
+}
+
+interface PileBreakdownItem {
+  label: string;
+  count: number;
+  dominant_range: string;
+  demand_pct: number;
+  judgment: string;
+  reason: string;
+}
+
+interface PileBreakdownAnalysis {
+  region_demand_text: string;
+  region_supply_text: string;
+  station_items: PileBreakdownItem[];
 }
 
 interface Props {
@@ -28,6 +43,7 @@ export default function PowerMismatchCard({ data }: Props) {
   const supplyVsDemand = (data.supply_vs_demand || []) as SupplyDemandItem[];
   const dominant = data.dominant_mismatch as Record<string, unknown> | undefined;
   const batteryContext = data.battery_context as Record<string, unknown> | undefined;
+  const pbAnalysis = data.pile_breakdown_analysis as PileBreakdownAnalysis | undefined;
 
   // TVD 颜色
   const tvdColor = tvdScore > 0.5 ? 'text-red-400' : tvdScore > 0.2 ? 'text-amber-400' : 'text-emerald-400';
@@ -95,14 +111,46 @@ export default function PowerMismatchCard({ data }: Props) {
             <span className="font-medium">主导错配</span>
           </div>
           <p className="text-muted-foreground mt-1">
-            {dominant.label as string}（{dominant.power_range as string}）
+            在当前区域下，{dominant.label as string}（{dominant.power_range as string}）
             {dominant.direction as string} {(dominant.gap_pct as number).toFixed(1)}%
           </p>
         </div>
       )}
 
-      {/* 电池容量建议 */}
-      {batteryContext && (
+      {/* pile_breakdown 三段式分析 */}
+      {pbAnalysis && (
+        <div className="rounded-lg bg-secondary/30 p-3 text-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-teal" />
+            <span className="font-medium">区域功率画像与用户场站对比</span>
+          </div>
+
+          {/* 第 1 段：区域需求画像 */}
+          <p className="text-muted-foreground leading-relaxed">{pbAnalysis.region_demand_text}</p>
+
+          {/* 第 2 段：区域供给现状 */}
+          <p className="text-muted-foreground leading-relaxed">{pbAnalysis.region_supply_text}</p>
+
+          {/* 第 3 段：用户场站对比 */}
+          <div className="space-y-2 pt-1">
+            <div className="text-xs font-medium text-foreground">您场站的功率结构诊断：</div>
+            {pbAnalysis.station_items.map((item, i) => (
+              <div key={i} className="rounded-md bg-navy-light/40 border border-border/50 p-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-foreground">{item.label}</span>
+                  <span className="text-xs font-semibold whitespace-nowrap shrink-0">
+                    {item.count} 台 · {item.judgment}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{item.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 电池容量建议（兜底，如果 pile_breakdown 分析不存在则展示原电池建议） */}
+      {!pbAnalysis && batteryContext && (
         <div className="rounded-lg bg-secondary/30 p-3 text-sm space-y-1">
           <div className="flex items-center gap-2">
             <Battery size={14} className="text-blue-400" />

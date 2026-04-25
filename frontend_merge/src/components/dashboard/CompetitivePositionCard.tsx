@@ -1,4 +1,4 @@
-import { Target, TrendingUp, Scale } from 'lucide-react';
+import { Target, TrendingUp, Scale, DollarSign } from 'lucide-react';
 
 interface Props {
   data: Record<string, unknown>;
@@ -6,6 +6,7 @@ interface Props {
 
 export default function CompetitivePositionCard({ data }: Props) {
   const cp = data.competitive_position as Record<string, unknown> | undefined;
+  const pb = data.price_benchmark as Record<string, unknown> | undefined;
 
   if (!cp) {
     return (
@@ -19,6 +20,11 @@ export default function CompetitivePositionCard({ data }: Props) {
   const capacity = cp.capacity_vs_actual as Record<string, unknown> | undefined;
   const price = cp.competitive_benchmark_price as Record<string, unknown> | undefined;
   const eu = cp.equilibrium_utilization as Record<string, unknown> | undefined;
+
+  const myPrices = pb?.my_prices as Record<string, number | null> | undefined;
+  const benchPrices = pb?.benchmark_prices as Record<string, number | null> | undefined;
+  const gaps = pb?.gaps as Record<string, number | null> | undefined;
+  const hasPriceData = pb && myPrices?.avg !== null;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
@@ -88,6 +94,44 @@ export default function CompetitivePositionCard({ data }: Props) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 价格结构对比（原竞品价格对标） */}
+      {hasPriceData && (
+        <div className="rounded-lg bg-secondary/30 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <DollarSign size={14} className="text-emerald-400" />
+            <span className="text-sm font-medium">价格结构对比</span>
+            <span className="text-xs text-muted-foreground ml-auto">{pb.confidence as string}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {(['min', 'avg', 'max'] as const).map((key) => {
+              const labelMap = { min: '低谷', avg: '均价', max: '高峰' };
+              const myVal = myPrices?.[key];
+              const benchVal = benchPrices?.[key];
+              const gap = gaps?.[`${key}_gap_pct`];
+              return (
+                <div key={key} className="rounded-md bg-navy-light/40 p-2">
+                  <div className="text-xs text-muted-foreground mb-1">{labelMap[key]}</div>
+                  <div className="text-base font-bold">¥{myVal ?? '-'}/度</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    竞品 ¥{benchVal ?? '-'}
+                    {typeof gap === 'number' && (
+                      <span className={gap > 0 ? 'text-red-400' : 'text-emerald-400'}>
+                        {' '}{gap > 0 ? '+' : ''}{gap}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+            <span>本场站峰谷比: {typeof pb.spread_ratio === 'number' ? pb.spread_ratio : 'N/A'}</span>
+            <span>竞品峰谷比: {typeof pb.benchmark_spread_ratio === 'number' ? pb.benchmark_spread_ratio : 'N/A'}</span>
+          </div>
+          {typeof pb.note === 'string' && <p className="text-xs text-muted-foreground">{pb.note}</p>}
         </div>
       )}
 

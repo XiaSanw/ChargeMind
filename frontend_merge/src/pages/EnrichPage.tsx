@@ -12,6 +12,16 @@ const QUESTION_EXAMPLES: Record<string, string> = {
   monthly_rent: '例如：55000（元/月）',
   staff_count: '例如：3（人）',
   avg_price: '例如：0.85（元/度，含电价+服务费）',
+  pile_breakdown: '请分别填写三种功率等级的桩数量',
+};
+
+// multi-number 的默认值
+const createMultiNumberDefault = (q: NextQuestion): Record<string, number | ''> => {
+  const defaults: Record<string, number | ''> = {};
+  q.subfields?.forEach((sf) => {
+    defaults[sf.key] = '';
+  });
+  return defaults;
 };
 
 export default function EnrichPage() {
@@ -20,8 +30,8 @@ export default function EnrichPage() {
   const [missingCount, setMissingCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [diagnoseLoading, setDiagnoseLoading] = useState(false);
-  const [inputValue, setInputValue] = useState<string | string[]>('');
-  const [history, setHistory] = useState<{ q: NextQuestion; a: string | string[] }[]>([]);
+  const [inputValue, setInputValue] = useState<string | string[] | Record<string, number | ''>>('');
+  const [history, setHistory] = useState<{ q: NextQuestion; a: string | string[] | Record<string, number | ''> }[]>([]);
 
   // fetchNextQuestion 接受可选的 currentProfile，避免闭包 stale profile 问题
   const fetchNextQuestion = useCallback(async (currentProfile?: StationProfile) => {
@@ -37,7 +47,14 @@ export default function EnrichPage() {
       } else {
         setQuestion(data.next_question || null);
         setMissingCount(data.missing_count);
-        setInputValue(data.next_question?.type === 'multiselect' ? [] : '');
+        const nextType = data.next_question?.type;
+        if (nextType === 'multiselect') {
+          setInputValue([]);
+        } else if (nextType === 'multi-number') {
+          setInputValue(createMultiNumberDefault(data.next_question!));
+        } else {
+          setInputValue('');
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '获取问题失败');
@@ -79,6 +96,20 @@ export default function EnrichPage() {
     if (question.type === 'number') {
       const num = Number(inputValue);
       val = isNaN(num) ? undefined : num;
+    } else if (question.type === 'multi-number') {
+      const obj = inputValue as Record<string, number | ''>;
+      const result: Record<string, number> = {};
+      let hasEmpty = false;
+      for (const [k, v] of Object.entries(obj)) {
+        const num = Number(v);
+        if (v === '' || isNaN(num)) {
+          hasEmpty = true;
+          break;
+        }
+        result[k] = num;
+      }
+      if (hasEmpty) return;
+      val = result;
     }
 
     // 构造更新后的 profile（同步，不依赖 Context state 延迟）
@@ -94,6 +125,37 @@ export default function EnrichPage() {
   const answeredCount = history.length;
   const totalSteps = answeredCount + missingCount;
   const progress = totalSteps > 0 ? Math.round((answeredCount / totalSteps) * 100) : 0;
+
+  // 判断当前是否可提交
+  const isSubmitDisabled = (() => {
+    if (loading) return true;
+    if (question?.type === 'multiselect') {
+      return !Array.isArray(inputValue) || inputValue.length === 0;
+    }
+    if (question?.type === 'multi-number') {
+      const obj = inputValue as Record<string, number | ''>;
+      return Object.values(obj).some((v) => v === '' || v === null || v === undefined);
+    }
+    return inputValue === '' || inputValue === null;
+  })();
+
+  // 格式化历史记录中的答案用于展示
+  const formatAnswer = (a: string | string[] | Record<string, number | ''>): string => {
+    if (Array.isArray(a)) return a.join('、');
+    if (typeof a === 'object') {
+      return Object.entries(a)
+        .map(([k, v]) => {
+          const labelMap: Record<string, string> = {
+            slow: '慢充',
+            fast: '快充',
+            super: '超充',
+          };
+          return `${labelMap[k] || k}: ${v}台`;
+        })
+        .join('，');
+    }
+    return String(a);
+  };
 
   if (diagnoseLoading) {
     return (
@@ -198,10 +260,40 @@ export default function EnrichPage() {
               />
             )}
 
+            {question.type === 'multi-number' && question.subfields && (
+              <div className="space-y-4">
+                {question.subfields.map((sf) => {
+                  const obj = inputValue as Record<string, number | ''>;
+                  return (
+                    <div key={sf.key}>
+                      <label className="block text-sm font-medium text-foreground mb-1.5">
+                        {sf.label}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={obj[sf.key] ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInputValue((prev) => ({
+                            ...(prev as Record<string, number | ''>),
+                            [sf.key]: val === '' ? '' : Number(val),
+                          }));
+                        }}
+                        placeholder={sf.placeholder || '请输入数量'}
+                        className="w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                        autoFocus={sf.key === question.subfields![0].key}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex items-center justify-end pt-2">
               <button
                 onClick={handleSubmit}
-                disabled={loading || (inputValue === '' || inputValue === null || (Array.isArray(inputValue) && inputValue.length === 0))}
+                disabled={isSubmitDisabled}
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
               >
                 {loading ? '加载中...' : '下一步 →'}
@@ -218,9 +310,7 @@ export default function EnrichPage() {
               {history.map((h, i) => (
                 <div key={i} className="flex items-center justify-between rounded-xl bg-secondary/50 px-4 py-2.5 text-sm">
                   <span className="text-muted-foreground">{h.q.question}</span>
-                  <span className="font-medium text-foreground">
-                    {Array.isArray(h.a) ? h.a.join('、') : h.a}
-                  </span>
+                  <span className="font-medium text-foreground">{formatAnswer(h.a)}</span>
                 </div>
               ))}
             </div>

@@ -44,7 +44,7 @@ export default function HeroSection({ onStartConsult }: HeroSectionProps) {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          className="text-6xl sm:text-7xl lg:text-8xl font-light text-cream leading-[1.05] tracking-tight mb-6"
+          className="text-6xl sm:text-7xl lg:text-8xl font-bold text-cream leading-[1.05] tracking-tight mb-6"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
           Charge
@@ -57,6 +57,7 @@ export default function HeroSection({ onStartConsult }: HeroSectionProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
           className="text-lg sm:text-xl text-slate-400 leading-relaxed max-w-2xl mx-auto mb-14"
+          style={{ fontFamily: 'SimSun, 宋体, serif' }}
         >
           算电协同时代，用
           <span className="text-teal">算法预测</span>
