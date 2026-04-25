@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1a1f36;
+  --color-navy-light: #232842;
+  --color-navy-lighter: #2a3050;
+  --color-copper: #c17f4e;
+  --color-copper-light: #d4935f;
+  --color-teal: #2dd4bf;
+  --color-cream: #fafaf8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-body: 'Source Sans 3', system-ui, sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-navy);
+    color: var(--color-cream);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .glass-card {
+    background: rgba(35, 40, 66, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(193, 127, 78, 0.15);
+  }
+
+  .glass-dialog {
+    background: rgba(26, 31, 54, 0.92);
+    border: 1px solid rgba(193, 127, 78, 0.2);
+    box-shadow:
+      0 25px 50px -12px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .glow-copper {
+    box-shadow: 0 0 30px rgba(193, 127, 78, 0.3), 0 0 60px rgba(193, 127, 78, 0.1);
+  }
+
+  .glow-teal {
+    box-shadow: 0 0 30px rgba(45, 212, 191, 0.2), 0 0 60px rgba(45, 212, 191, 0.05);
+  }
+
+  .gradient-radial {
+    background: radial-gradient(ellipse at center, rgba(193, 127, 78, 0.08) 0%, transparent 70%);
+  }
+
+  .gradient-radial-teal {
+    background: radial-gradient(ellipse at center, rgba(45, 212, 191, 0.06) 0%, transparent 70%);
+  }
+}
