@@ -1,52 +1,31 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useDiagnosis } from '@/store/DiagnosisContext';
 import { adaptLegacyToDashboard } from '@/lib/adaptLegacyToDashboard';
 import Headline from '@/components/dashboard/Headline';
 import StationRadarChart from '@/components/dashboard/RadarChart';
 import KPICards from '@/components/dashboard/KPICards';
-
 import PathCards from '@/components/dashboard/PathCards';
 import DetailSection from '@/components/dashboard/DetailSection';
 import PowerMismatchCard from '@/components/dashboard/PowerMismatchCard';
 import BrandAnalysisCard from '@/components/dashboard/BrandAnalysisCard';
 import CompetitivePositionCard from '@/components/dashboard/CompetitivePositionCard';
-
-function LoadingOverlay() {
-  const phases = [
-    '正在解析场站画像...',
-    '算法硬算分析中...',
-    'RAG 检索相似场站...',
-    'LLM 叙事包装中...',
-  ];
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4">
-      <div className="text-center space-y-6 max-w-md">
-        <div className="relative inline-flex items-center justify-center">
-          <div className="absolute w-20 h-20 rounded-full border-2 border-primary/20" />
-          <div className="absolute w-20 h-20 rounded-full border-2 border-transparent border-t-primary animate-spin" />
-          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">双引擎诊断中...</h2>
-          <p className="text-sm text-muted-foreground animate-pulse">
-            {phases[Math.floor(Date.now() / 2500) % phases.length]}
-          </p>
-        </div>
-        <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-          <div className="h-full rounded-full bg-primary animate-pulse" style={{ width: '60%' }} />
-        </div>
-      </div>
-    </div>
-  );
-}
+import LoadingOverlay from '@/components/dashboard/LoadingOverlay';
 
 export default function ReportPage() {
   const { diagnoseResult, isDiagnosing, error, reset, setError } = useDiagnosis();
+  const [showLoader, setShowLoader] = useState(isDiagnosing);
+  const [forceComplete, setForceComplete] = useState(false);
+
+  /* ── 加载完成过渡：先快速填满 → 再隐藏 loader ── */
+  useEffect(() => {
+    if (!isDiagnosing && showLoader && !forceComplete) {
+      setForceComplete(true);
+    }
+    if (isDiagnosing) {
+      setShowLoader(true);
+      setForceComplete(false);
+    }
+  }, [isDiagnosing, showLoader, forceComplete]);
 
   const handleRetry = useCallback(() => {
     setError(null);
@@ -64,8 +43,13 @@ export default function ReportPage() {
     }
   }, [diagnoseResult]);
 
-  if (isDiagnosing) {
-    return <LoadingOverlay />;
+  if (showLoader) {
+    return (
+      <LoadingOverlay
+        forceComplete={forceComplete}
+        onDone={() => setShowLoader(false)}
+      />
+    );
   }
 
   if (error) {
@@ -118,7 +102,6 @@ export default function ReportPage() {
     paths,
     detail_text,
   } = dashboardData;
-
 
   return (
     <div className="min-h-screen px-4 py-8 md:py-12">
