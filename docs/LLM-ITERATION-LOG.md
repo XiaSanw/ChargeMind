@@ -2068,3 +2068,48 @@ vite build  ✅ 705KB (gzipped 216KB)
 - 后端 `uvicorn` 8000 ✅
 - 前端 `vite` 5173 ✅
 
+
+
+---
+
+### 2026-04-26 21:40 — xiasanwkimi
+
+**[功能] KPI 卡片新增 LLM 综合洞察 + 品牌卡片双框 + 示例随机化**
+
+**1. KPI 卡片新增 LLM 一句话综合分析**
+
+需求：4 个关键指标下方增加基于指标数值的 LLM 综合洞察。
+
+实现：
+- 后端 `diagnosis.py` `_llm_narrative_packaging`：prompt 注入 4 个 KPI 数据，要求返回 `kpi_summary`（30-50 字）
+- 后端 `diagnosis.py` `diagnose()`：将 `kpi_summary` 写入 `dashboard.kpi_summary`
+- 前端 `types/dashboard.ts`：`Dashboard` 增加 `kpi_summary?: string`
+- 前端 `ReportPage.tsx`：KPICards 下方渲染 💡 综合洞察卡片
+
+验证：`kpi_summary: "均衡利用率极低（0.0%-0.4%）且定价偏高（+40%），年收益预估远超行业平均但可信度低，存在量价严重错配。"` ✅
+
+**2. 品牌与车辆画像卡片改为双框 + 专用桩洞察**
+
+需求：品牌卡片只有一个框（电池容量），隔壁都有两个；增加"多少个车型专用桩"引导。
+
+实现：
+- `BrandAnalysisCard.tsx`：品牌构成（框1）+ 电池容量（框2）
+- 框1 新增「专用桩品牌洞察」：统计排除"非自有桩品牌"后的专用桩品牌数，列出 TOP3，附动态建议文案
+
+**3. 预设示例随机四选一**
+
+需求：4 个不同场景示例，点击"使用示例"随机选一个，都在福田区啤酒小镇附近。
+
+实现：
+- `StationInputPage.tsx`：`EXAMPLE_TEXTS` 数组（4 个场景：大型超充站/社区慢充站/写字楼配套站/文旅街区站）+ `getRandomExample()`
+- `EnrichPage.tsx`：`QUESTION_EXAMPLES` 对齐啤酒小镇场景参数
+
+**4. 称号移回雷达图卡片内部上侧**
+
+`ReportPage.tsx`：称号 Badge 从 Radar+KPI grid 外侧移回左侧雷达图卡片内部顶部。
+
+**编译/服务状态：**
+- `tsc -b` ✅ 0 errors
+- `python3 -m py_compile` ✅
+- 前后端均已重启 ✅
+

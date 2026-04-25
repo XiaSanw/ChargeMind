@@ -166,27 +166,34 @@ export default function ReportPage() {
         {/* Headline（一句话痛点诊断） */}
         <Headline text={dashboard.headline} />
 
-        {/* 称号展示（位于雷达图卡片外侧上方） */}
-        {dashboard.title && (
-          <div className="text-center mb-2">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-lg font-bold">
-              {dashboard.title}
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">{dashboard.title_reason}</p>
-          </div>
-        )}
-
         {/* Radar + KPI */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-2xl border border-border bg-card p-6">
+            {/* 称号展示（位于雷达图卡片上侧） */}
+            {dashboard.title && (
+              <div className="text-center mb-4">
+                <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-lg font-bold">
+                  {dashboard.title}
+                </span>
+                <p className="text-sm text-muted-foreground mt-1">{dashboard.title_reason}</p>
+              </div>
+            )}
             <StationRadarChart data={dashboard.radar} />
             <p className="text-xs text-muted-foreground text-center mt-2">
               {dashboard.scoring_logic}
             </p>
           </div>
-          <div className="rounded-2xl border border-border bg-card p-6">
-            <h3 className="text-lg font-semibold mb-4">关键指标</h3>
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <h3 className="text-lg font-semibold">关键指标</h3>
             <KPICards cards={kpi_cards} />
+            {dashboard.kpi_summary && (
+              <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
+                <p className="text-sm text-foreground leading-relaxed">
+                  <span className="font-medium text-primary">💡 综合洞察：</span>
+                  {dashboard.kpi_summary}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

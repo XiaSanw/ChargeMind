@@ -2,7 +2,17 @@ import { useState, useCallback } from 'react';
 import { useDiagnosis } from '@/store/DiagnosisContext';
 import { extractProfile } from '@/lib/api';
 
-const EXAMPLE_TEXT = '我在深圳南山区科技园附近建了一个充电站，有20个快充桩，总装机功率1200kW，周边主要是写字楼和商场，月租金大概6万元，有4个运维人员。';
+const EXAMPLE_TEXTS = [
+  '我在深圳福田区啤酒小镇核心商圈建了一个大型超充站，紧邻深业上城购物中心，有32个快充桩，总装机功率2400kW，周边主要是商业综合体、餐饮街和写字楼，夜间客流也很大，月租金大概12万元，有6个运维人员，平均电价加服务费约0.9元每度。',
+  '我在深圳福田区啤酒小镇旁边的一个住宅小区门口建了一个社区充电站，主要服务周边居民，有8个慢充桩和4个快充桩，总装机功率360kW，周边主要是住宅区和底商便利店，晚上充电需求比较集中，月租金大概2.8万元，有2个兼职运维人员。',
+  '我在深圳福田区啤酒小镇附近的写字楼地下停车场建了一个办公配套充电站，主要服务上班白领，有15个快充桩，总装机功率900kW，周边全是甲级写字楼和商务酒店，工作日白天是充电高峰，月租金大概4.5万元，有2个专职运维人员。',
+  '我在深圳福田区啤酒小镇对面的文旅街区建了一个特色充电站，靠近网红打卡点和精品酒店，有12个快充桩，总装机功率720kW，周边主要是酒店、民宿、咖啡馆和文创小店，周末和节假日客流爆满，月租金大概5万元，有3个运维人员。',
+];
+
+function getRandomExample(): string {
+  const idx = Math.floor(Math.random() * EXAMPLE_TEXTS.length);
+  return EXAMPLE_TEXTS[idx];
+}
 
 export default function StationInputPage() {
   const { setProfile, setCurrentPage, setError } = useDiagnosis();
@@ -25,7 +35,7 @@ export default function StationInputPage() {
   }, [input, setProfile, setCurrentPage, setError]);
 
   const handleExample = useCallback(() => {
-    setInput(EXAMPLE_TEXT);
+    setInput(getRandomExample());
   }, []);
 
   return (
@@ -55,7 +65,7 @@ export default function StationInputPage() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="例如：我在深圳宝安区某物流园旁有个充电站，15个桩，总功率900kW..."
+            placeholder="例如：我在深圳福田区啤酒小镇附近有个充电站，18个桩，总功率1080kW，周边是商业区和餐饮街..."
             rows={5}
             className="w-full rounded-xl border border-border bg-input px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none transition-all"
           />

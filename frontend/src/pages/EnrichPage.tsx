@@ -5,13 +5,13 @@ import type { NextQuestion, StationProfile } from '@/types/diagnosis';
 
 // 每个问题的示例回答（显示在问题下方引导用户）
 const QUESTION_EXAMPLES: Record<string, string> = {
-  region: '例如：南山区、福田区、宝安区',
-  business_type: '可多选，例如：办公区 + 商业区',
-  total_installed_power: '例如：1200（单位：kW）',
-  pile_count: '例如：20（个）',
-  monthly_rent: '例如：60000（元/月）',
-  staff_count: '例如：4（人）',
-  avg_price: '例如：0.8（元/度，含电价+服务费）',
+  region: '例如：福田区',
+  business_type: '可多选，例如：商业区 + 餐饮区',
+  total_installed_power: '例如：1080（单位：kW）',
+  pile_count: '例如：18（个）',
+  monthly_rent: '例如：55000（元/月）',
+  staff_count: '例如：3（人）',
+  avg_price: '例如：0.85（元/度，含电价+服务费）',
 };
 
 export default function EnrichPage() {

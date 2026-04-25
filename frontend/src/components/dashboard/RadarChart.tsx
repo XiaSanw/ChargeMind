@@ -50,7 +50,7 @@ export default function StationRadarChart({ data }: Props) {
       </ResponsiveContainer>
       {/* 中心综合评分 */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-4xl font-bold text-foreground">{Math.round(data['地段禀赋'].score + data['硬件适配'].score + data['定价精准'].score + data['运营产出'].score + data['需求饱和度'].score) / 5}</span>
+        <span className="text-4xl font-bold text-foreground">{Math.round((data['地段禀赋'].score + data['硬件适配'].score + data['定价精准'].score + data['运营产出'].score + data['需求饱和度'].score) / 5)}</span>
         <span className="text-xs text-muted-foreground mt-1">综合评分</span>
       </div>
     </div>

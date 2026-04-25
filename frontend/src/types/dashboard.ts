@@ -31,6 +31,7 @@ export interface Dashboard {
   sector_avg: Record<string, number> | null;
   scoring_reasoning: Record<string, string> | null;
   warnings: DashboardWarning[];
+  kpi_summary?: string;    // LLM 基于4个KPI的一句话综合分析
 }
 
 export interface KPICardData {

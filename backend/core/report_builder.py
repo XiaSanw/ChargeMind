@@ -646,7 +646,7 @@ def build_diagnosis_report(station: dict, all_stations: List[dict], similar_stat
     warnings = []
     if not has_grid:
         warnings.append({
-            "level": "error",
+            "severity": "high",
             "icon": "⚠️",
             "message": "本场站无 grid 画像数据，地段/硬件/饱和度分析基于有限信息",
             "detail": "grid_vehicle_profile 缺失，车型构成、功率需求、SOC、季节波动等模块无法计算。建议补充网格画像数据后重新诊断。",

@@ -237,6 +237,9 @@ def diagnose(req: DiagnoseRequest):
                     refined = result.get("headline_refined", "")
                     if refined:
                         report.setdefault("dashboard", {})["headline"] = refined
+                    kpi_summary = result.get("kpi_summary", "")
+                    if kpi_summary:
+                        report.setdefault("dashboard", {})["kpi_summary"] = kpi_summary
     else:
         report["llm_enhancement"] = {"error": "LLM 不可用"}
 
@@ -294,6 +297,13 @@ def _llm_narrative_packaging(report: dict, profile: dict, client, model: str) ->
     else:
         price_hint = "价格结构：本场站或竞品无有效价格数据，跳过价格对比分析。"
 
+    # 提取 KPI 数据用于 LLM 分析
+    kpi_cards = report.get("kpi_cards", [])
+    kpi_text = "\n".join([
+        f"- {c.get('label', '未知')}：{c.get('value', 'N/A')}（{c.get('benchmark', '')}，可信度{c.get('trust', '')}）"
+        for c in kpi_cards
+    ])
+
     prompt = f"""你是一位充电场站运营诊断专家。以下是一份基于硬数据计算的场站体检报告，请你进行叙事包装和异常识别。
 
 【关键规则】
@@ -308,6 +318,9 @@ def _llm_narrative_packaging(report: dict, profile: dict, client, model: str) ->
 - 装机功率：{profile.get('total_installed_power', '未知')}kW
 - 桩数：{profile.get('pile_count', '未知')}
 
+【关键指标（KPI）】
+{kpi_text}
+
 【硬数据诊断结果】
 - 称号：{dashboard.get('title', '')}
 - 5维得分：地段{radar.get('地段禀赋', {}).get('score', 'N/A')} / 硬件{radar.get('硬件适配', {}).get('score', 'N/A')} / 定价{radar.get('定价精准', {}).get('score', 'N/A')} / 运营{radar.get('运营产出', {}).get('score', 'N/A')} / 饱和{radar.get('需求饱和度', {}).get('score', 'N/A')}
@@ -318,6 +331,7 @@ def _llm_narrative_packaging(report: dict, profile: dict, client, model: str) ->
 
 【输出约束】
 - headline_refined：严格 20 字以内，一句话痛点，禁止解释
+- kpi_summary：基于上述4个关键指标，给出30-50字的一句话综合分析，点明核心矛盾（如"利用率极低但定价偏高，存在量价错配"），禁止编造数据外的数字
 - anomalies：最多 3 条，只列真正有异常的数据点，无异常时返回空数组
 - trend_outlook：基于季节波动做方向性推演（上行/下行/平稳），20 字以内，禁止数字
 - path_suggestions：最多 3 条，只给方向性建议，禁止出现具体数字
@@ -326,6 +340,7 @@ def _llm_narrative_packaging(report: dict, profile: dict, client, model: str) ->
 请输出 JSON：
 {{
   "headline_refined": "20字以内的一句话痛点",
+  "kpi_summary": "基于4个关键指标的综合分析，30-50字",
   "anomalies": [
     {{
       "type": "功率异常/价格异常/运营异常/季节异常",
